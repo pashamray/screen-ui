@@ -1,49 +1,37 @@
 #pragma once
 #include <stdint.h>
 #include "widget.h"
+#include "theme.h"
 
 typedef struct {
     uint16_t fg;
     uint16_t bg;
 } DrawStyle;
 
-typedef struct {
-    uint16_t screen_bg;      // canvas fill
-    uint16_t text_fg;        // default foreground text
-    uint16_t widget_bg;      // button / value / edit background
-    uint16_t border_normal;  // unfocused border
-    uint16_t border_focused; // focused border
-    uint16_t border_editing; // value being edited (encoder)
-    uint16_t border_subtle;  // de-emphasised border (W_VALUE idle)
-    uint16_t cursor_fg;      // text cursor character foreground
-    uint16_t cursor_bg;      // text cursor character background
-    uint16_t hint_fg;        // overlay hint text
-} Theme;
-
-extern const Theme theme_default;
 void render_set_theme(const Theme *t);
 
 
 typedef struct Render Render;
 
 struct Render {
-    // ── drawing primitives ────────────────────────────────────────────────────
-    void (*fill_rect)  (int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
-    void (*draw_text)  (int16_t x, int16_t y, const char *text, const DrawStyle *style);
-    void (*draw_border)(int16_t x, int16_t y, int16_t w, int16_t h,
-                        uint16_t color, uint8_t thickness);
-    void (*flush)      (void);
+    // ── frame-level hooks ─────────────────────────────────────────────────────
+    void (*begin_frame)      (const Render *r, const Theme *t);
+    void (*flush)            (void);
+    // called instead of the normal frame when W_EDIT is in string-input mode
+    void (*draw_edit_overlay)(const Render *r, const Widget *w, const Theme *t, int cursor);
 
     uint16_t screen_w;
     uint16_t screen_h;
-    uint8_t  char_w;   // logical pixels per character column (text-mode renderers)
-    uint8_t  char_h;   // logical pixels per character row
 
-    // ── optional widget overrides (NULL → built-in drawing) ───────────────────
+    // ── widget draw callbacks ─────────────────────────────────────────────────
+    void (*draw_label)(const Render *r, int16_t x, int16_t y,
+                       const Widget *w, const Theme *t);
     void (*draw_btn)  (const Render *r, int16_t x, int16_t y,
                        const Widget *w, const Theme *t, int focused);
     void (*draw_value)(const Render *r, int16_t x, int16_t y,
                        const Widget *w, const Theme *t, int focused, int editing);
+    void (*draw_edit) (const Render *r, int16_t x, int16_t y,
+                       const Widget *w, const Theme *t, int focused);
 };
 
 void  render_set(const Render *r);

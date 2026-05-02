@@ -74,6 +74,163 @@ static void my_flush(void) {
     SDL_RenderPresent(sdl);
 }
 
+static const Theme theme = {
+    .screen_bg      = 0x0000,
+    .text_fg        = 0xFFFF,
+    .widget_bg      = 0x2104,
+    .border_normal  = 0xFFFF,
+    .border_focused = 0x07FF,
+    .border_editing = 0xFFE0,
+    .border_subtle  = 0x4208,
+    .cursor_fg      = 0x0000,
+    .cursor_bg      = 0x07FF,
+    .hint_fg        = 0x8410,
+};
+
+// ── frame-level hooks ────────────────────────────────────────────────────────
+
+static void menu_begin_frame(const Render *r, const Theme *t) {
+    (void)r;
+    uint8_t br, bg_, bb;
+    rgb565(t->screen_bg, &br, &bg_, &bb);
+    SDL_SetRenderDrawColor(sdl, br, bg_, bb, 255);
+    SDL_RenderClear(sdl);
+}
+
+static void sdl_draw_edit_overlay(const Render *r, const Widget *w,
+                                   const Theme *t, int cursor) {
+    char    *buf    = w->buf;
+    int      maxlen = w->buf_len - 1;
+    int      slen   = (int)strlen(buf);
+    int      cw     = font_8x8.w;
+    int      fh     = font_8x8.h;
+
+    uint16_t wfg = w->colors ? w->colors->fg : t->text_fg;
+    uint16_t wbg = w->colors ? w->colors->bg : t->widget_bg;
+
+    my_fill_rect(0, 0, (int16_t)r->screen_w, (int16_t)r->screen_h, t->screen_bg);
+
+    DrawStyle s_title = { .fg = t->text_fg, .bg = t->screen_bg };
+    int16_t tx = (int16_t)(r->screen_w / 2 - (int)strlen(w->text) * cw / 2);
+    my_draw_text(tx, 16, w->text, &s_title);
+
+    int16_t fw = (int16_t)(maxlen * cw + 8);
+    int16_t fx = (int16_t)(r->screen_w  / 2 - fw / 2);
+    int16_t fy = (int16_t)(r->screen_h  / 2 - fh / 2 - 4);
+    my_fill_rect(fx, fy, fw, (int16_t)(fh + 8), wbg);
+    my_draw_border(fx, fy, fw, (int16_t)(fh + 8), t->border_focused, 1);
+
+    int16_t cx = (int16_t)(fx + 4);
+    int16_t cy = (int16_t)(fy + 4);
+
+    DrawStyle s_norm = { .fg = wfg,          .bg = wbg           };
+    DrawStyle s_cur  = { .fg = t->cursor_fg,  .bg = t->cursor_bg  };
+
+    if (cursor > 0) {
+        char part[64];
+        memcpy(part, buf, (size_t)cursor);
+        part[cursor] = '\0';
+        my_draw_text(cx, cy, part, &s_norm);
+    }
+    char cur_ch[2] = { cursor < slen ? buf[cursor] : ' ', '\0' };
+    my_draw_text((int16_t)(cx + cursor * cw), cy, cur_ch, &s_cur);
+    if (cursor < slen)
+        my_draw_text((int16_t)(cx + (cursor + 1) * cw), cy,
+                     buf + cursor + 1, &s_norm);
+
+    DrawStyle s_hint = { .fg = t->hint_fg, .bg = t->screen_bg };
+    const char *hint = "Enter=confirm  Esc=cancel";
+    int16_t hx = (int16_t)(r->screen_w / 2 - (int)strlen(hint) * cw / 2);
+    my_draw_text(hx, (int16_t)(r->screen_h - 20), hint, &s_hint);
+}
+
+// ── widget callbacks ─────────────────────────────────────────────────────────
+
+static void menu_draw_label(const Render *r, int16_t x, int16_t y,
+                            const Widget *w, const Theme *t)
+{
+    (void)r;
+    uint16_t fg = w->colors ? w->colors->fg : t->text_fg;
+    int tlen = (int)strlen(w->text);
+    int16_t tx = (w->w > 0) ? x : (int16_t)(x - tlen * font_8x8.w / 2);
+    DrawStyle s = { .fg = fg, .bg = t->screen_bg };
+    my_draw_text(tx, y, w->text, &s);
+}
+
+static void menu_draw_edit(const Render *r, int16_t x, int16_t y,
+                           const Widget *w, const Theme *t, int focused)
+{
+    (void)r;
+    uint16_t fg = w->colors ? w->colors->fg : t->text_fg;
+    uint16_t bg = w->colors ? w->colors->bg : t->widget_bg;
+    uint16_t border_col = focused ? t->border_focused : t->border_normal;
+    my_fill_rect(x, y, w->w, w->h, bg);
+    my_draw_border(x, y, w->w, w->h, border_col, 1);
+    char disp[48];
+    const char *val = (w->buf && w->buf[0]) ? w->buf : "...";
+    snprintf(disp, sizeof(disp), "%s: %s", w->text, val);
+    int tlen = (int)strlen(disp);
+    int16_t tx = (int16_t)(x + (w->w - tlen * font_8x8.w) / 2);
+    int16_t ty = (int16_t)(y + (w->h - font_8x8.h) / 2);
+    DrawStyle s = { .fg = fg, .bg = bg };
+    my_draw_text(tx, ty, disp, &s);
+}
+
+static void menu_draw_btn(const Render *r, int16_t x, int16_t y,
+                          const Widget *w, const Theme *t, int focused)
+{
+    (void)r;
+    uint16_t fg = w->colors ? w->colors->fg : t->text_fg;
+    uint16_t bg = w->colors ? w->colors->bg : t->screen_bg;
+
+    my_fill_rect(x, y, w->w, w->h, bg);
+
+    int tlen = (int)strlen(w->text);
+    int16_t tx = (int16_t)(x + (w->w - tlen * font_8x8.w) / 2);
+    int16_t ty = (int16_t)(y + (w->h - font_8x8.h) / 2);
+
+    DrawStyle s = { .fg = fg, .bg = bg };
+    my_draw_text(tx, ty, w->text, &s);
+
+    if (focused) {
+        DrawStyle sa = { .fg = t->border_focused, .bg = bg };
+        my_draw_text((int16_t)(x + 4), ty, ">", &sa);
+    }
+}
+
+static void menu_draw_value(const Render *r, int16_t x, int16_t y,
+                            const Widget *w, const Theme *t, int focused, int editing)
+{
+    (void)r;
+    uint16_t fg = w->colors ? w->colors->fg : t->text_fg;
+    uint16_t bg = w->colors ? w->colors->bg : t->widget_bg;
+    uint16_t border_col = editing ? t->border_editing :
+                          focused ? t->border_focused : t->border_subtle;
+
+    my_fill_rect(x, y, w->w, w->h, bg);
+    my_draw_border(x, y, w->w, w->h, border_col, 1);
+
+    char disp[48];
+    if (w->options && w->value)
+        snprintf(disp, sizeof(disp), "%s: %s", w->text, w->options[*w->value]);
+    else if (w->value)
+        snprintf(disp, sizeof(disp), "%s: %d", w->text, *w->value);
+    else
+        snprintf(disp, sizeof(disp), "%s: --", w->text);
+
+    int tlen = (int)strlen(disp);
+    int16_t tx = (int16_t)(x + (w->w - tlen * font_8x8.w) / 2);
+    int16_t ty = (int16_t)(y + (w->h - font_8x8.h) / 2);
+    DrawStyle s = { .fg = fg, .bg = bg };
+    my_draw_text(tx, ty, disp, &s);
+
+    if (editing) {
+        DrawStyle sa = { .fg = t->border_editing, .bg = bg };
+        my_draw_text((int16_t)(x + font_8x8.w),             ty, "<", &sa);
+        my_draw_text((int16_t)(x + w->w - 2 * font_8x8.w),  ty, ">", &sa);
+    }
+}
+
 // ── lifecycle ────────────────────────────────────────────────────────────────
 void render_impl_sdl_init(int screen_w, int screen_h, int sc) {
     scale = sc;
@@ -87,16 +244,18 @@ void render_impl_sdl_init(int screen_w, int screen_h, int sc) {
 
     static Render r;
     r = (Render){
-        .fill_rect   = my_fill_rect,
-        .draw_text   = my_draw_text,
-        .draw_border = my_draw_border,
-        .flush       = my_flush,
-        .screen_w    = (uint16_t)screen_w,
-        .screen_h    = (uint16_t)screen_h,
-        .char_w      = font_8x8.w,
-        .char_h      = font_8x8.h,
+        .begin_frame      = menu_begin_frame,
+        .flush            = my_flush,
+        .draw_edit_overlay = sdl_draw_edit_overlay,
+        .screen_w         = (uint16_t)screen_w,
+        .screen_h         = (uint16_t)screen_h,
+        .draw_label       = menu_draw_label,
+        .draw_btn         = menu_draw_btn,
+        .draw_value       = menu_draw_value,
+        .draw_edit        = menu_draw_edit,
     };
     render_set(&r);
+    render_set_theme(&theme);
 }
 
 void sdl_wait_key(void) {

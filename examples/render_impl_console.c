@@ -89,20 +89,110 @@ static void my_flush(void) {
     fflush(stdout);
 }
 
+static const Theme theme = {
+    .screen_bg      = 0x0000,
+    .text_fg        = 0xFFFF,
+    .widget_bg      = 0x2104,
+    .border_normal  = 0xFFFF,
+    .border_focused = 0x07FF,
+    .border_editing = 0xFFE0,
+    .border_subtle  = 0x4208,
+    .cursor_fg      = 0x0000,
+    .cursor_bg      = 0x07FF,
+    .hint_fg        = 0x8410,
+};
+
+// ── frame-level hooks ────────────────────────────────────────────────────────
+
+static void console_begin_frame(const Render *r, const Theme *t) {
+    (void)r; (void)t;
+    fb_clear();
+}
+
+// ── widget callbacks ─────────────────────────────────────────────────────────
+
+static void console_draw_label(const Render *r, int16_t x, int16_t y,
+                                const Widget *w, const Theme *t) {
+    (void)r;
+    uint16_t fg = w->colors ? w->colors->fg : t->text_fg;
+    int tlen = (int)strlen(w->text);
+    int16_t tx = (w->w > 0) ? x : (int16_t)(x - tlen * (LOG_W / COLS) / 2);
+    DrawStyle s = { .fg = fg, .bg = t->screen_bg };
+    my_draw_text(tx, y, w->text, &s);
+}
+
+static void console_draw_btn(const Render *r, int16_t x, int16_t y,
+                              const Widget *w, const Theme *t, int focused) {
+    (void)r;
+    uint16_t fg = w->colors ? w->colors->fg : t->text_fg;
+    uint16_t bg = w->colors ? w->colors->bg : t->widget_bg;
+    uint16_t border_col = focused ? t->border_focused : t->border_normal;
+    my_fill_rect(x, y, w->w, w->h, bg);
+    my_draw_border(x, y, w->w, w->h, border_col, 1);
+    int tlen = (int)strlen(w->text);
+    int16_t tx = (int16_t)(x + (w->w - tlen * (LOG_W / COLS)) / 2);
+    int16_t ty = (int16_t)(y + (w->h - (LOG_H / ROWS)) / 2);
+    DrawStyle s = { .fg = fg, .bg = bg };
+    my_draw_text(tx, ty, w->text, &s);
+}
+
+static void console_draw_value(const Render *r, int16_t x, int16_t y,
+                                const Widget *w, const Theme *t, int focused, int editing) {
+    (void)r;
+    uint16_t fg = w->colors ? w->colors->fg : t->text_fg;
+    uint16_t bg = w->colors ? w->colors->bg : t->widget_bg;
+    char disp[48];
+    if (w->options && w->value)
+        snprintf(disp, sizeof(disp), "%s: %s", w->text, w->options[*w->value]);
+    else if (w->value)
+        snprintf(disp, sizeof(disp), "%s: %d", w->text, *w->value);
+    else
+        snprintf(disp, sizeof(disp), "%s: --", w->text);
+
+    uint16_t border_col = editing ? t->border_editing :
+                          focused ? t->border_focused : t->border_subtle;
+    my_fill_rect(x, y, w->w, w->h, bg);
+    my_draw_border(x, y, w->w, w->h, border_col, 1);
+    int tlen = (int)strlen(disp);
+    int16_t tx = (int16_t)(x + (w->w - tlen * (LOG_W / COLS)) / 2);
+    int16_t ty = (int16_t)(y + (w->h - (LOG_H / ROWS)) / 2);
+    DrawStyle s = { .fg = fg, .bg = bg };
+    my_draw_text(tx, ty, disp, &s);
+}
+
+static void console_draw_edit(const Render *r, int16_t x, int16_t y,
+                               const Widget *w, const Theme *t, int focused) {
+    (void)r;
+    uint16_t fg = w->colors ? w->colors->fg : t->text_fg;
+    uint16_t bg = w->colors ? w->colors->bg : t->widget_bg;
+    uint16_t border_col = focused ? t->border_focused : t->border_normal;
+    my_fill_rect(x, y, w->w, w->h, bg);
+    my_draw_border(x, y, w->w, w->h, border_col, 1);
+    char disp[48];
+    const char *val = (w->buf && w->buf[0]) ? w->buf : "...";
+    snprintf(disp, sizeof(disp), "%s: %s", w->text, val);
+    int tlen = (int)strlen(disp);
+    int16_t tx = (int16_t)(x + (w->w - tlen * (LOG_W / COLS)) / 2);
+    int16_t ty = (int16_t)(y + (w->h - (LOG_H / ROWS)) / 2);
+    DrawStyle s = { .fg = fg, .bg = bg };
+    my_draw_text(tx, ty, disp, &s);
+}
+
 static const Render render_impl_console = {
-    .fill_rect   = my_fill_rect,
-    .draw_text   = my_draw_text,
-    .draw_border = my_draw_border,
-    .flush       = my_flush,
-    .screen_w    = LOG_W,
-    .screen_h    = LOG_H,
-    .char_w      = LOG_W / COLS,   // 4 logical pixels per column
-    .char_h      = LOG_H / ROWS,   // 8 logical pixels per row
+    .begin_frame  = console_begin_frame,
+    .flush        = my_flush,
+    .screen_w     = LOG_W,
+    .screen_h     = LOG_H,
+    .draw_label   = console_draw_label,
+    .draw_btn     = console_draw_btn,
+    .draw_value   = console_draw_value,
+    .draw_edit    = console_draw_edit,
 };
 
 void console_render_init(void) {
     fb_clear();
     render_set(&render_impl_console);
+    render_set_theme(&theme);
 }
 
 void render_init(void)     { console_render_init(); }
