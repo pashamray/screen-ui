@@ -28,7 +28,7 @@ const Theme theme_default = {
 
 static const Theme *T = &theme_default;
 
-void render_set(const Render *r) { R = r; }
+void render_set(const Render *r)      { R = r; }
 void render_set_theme(const Theme *t) { T = t; }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -62,20 +62,17 @@ static void draw_edit_overlay(void) {
     char         *buf    = w->buf;
     int           maxlen = w->buf_len - 1;
     int           slen   = (int)strlen(buf);
-    const Font   *font   = w->font ? w->font : R->default_font;
-    uint8_t       cw     = font ? font->w : R->char_w;
-    uint8_t       fh     = font ? font->h : R->char_h;
-    const Font   *dfont  = R->default_font;
-    uint8_t       dcw    = dfont ? dfont->w : R->char_w;
+    uint8_t       cw     = R->char_w;
+    uint8_t       fh     = R->char_h;
 
     uint16_t wfg = w->colors ? w->colors->fg : T->text_fg;
     uint16_t wbg = w->colors ? w->colors->bg : T->widget_bg;
 
     R->fill_rect(0, 0, R->screen_w, R->screen_h, T->screen_bg);
 
-    DrawStyle s_title = { .fg = T->text_fg, .bg = T->screen_bg, .font = dfont };
+    DrawStyle s_title = { .fg = T->text_fg, .bg = T->screen_bg };
     int tlen = (int)strlen(w->text);
-    int16_t tx = (int16_t)(R->screen_w / 2 - tlen * dcw / 2);
+    int16_t tx = (int16_t)(R->screen_w / 2 - tlen * cw / 2);
     R->draw_text(tx, 16, w->text, &s_title);
 
     int16_t fw = (int16_t)(maxlen * cw + 8);
@@ -87,8 +84,8 @@ static void draw_edit_overlay(void) {
     int16_t cx = (int16_t)(fx + 4);
     int16_t cy = (int16_t)(fy + 4);
 
-    DrawStyle s_normal = { .fg = wfg,         .bg = wbg,         .font = font };
-    DrawStyle s_cursor = { .fg = T->cursor_fg, .bg = T->cursor_bg, .font = font };
+    DrawStyle s_normal = { .fg = wfg,         .bg = wbg          };
+    DrawStyle s_cursor = { .fg = T->cursor_fg, .bg = T->cursor_bg };
 
     if (edit_cursor > 0) {
         char part[64];
@@ -102,10 +99,10 @@ static void draw_edit_overlay(void) {
         R->draw_text((int16_t)(cx + (edit_cursor + 1) * cw), cy,
                      buf + edit_cursor + 1, &s_normal);
 
-    DrawStyle s_hint = { .fg = T->hint_fg, .bg = T->screen_bg, .font = dfont };
+    DrawStyle s_hint = { .fg = T->hint_fg, .bg = T->screen_bg };
     const char *hint = "Enter=confirm  Esc=cancel";
     int hlen = (int)strlen(hint);
-    int16_t hx = (int16_t)(R->screen_w / 2 - hlen * dcw / 2);
+    int16_t hx = (int16_t)(R->screen_w / 2 - hlen * cw / 2);
     R->draw_text(hx, (int16_t)(R->screen_h - 20), hint, &s_hint);
 
     if (R->flush) R->flush();
@@ -129,35 +126,34 @@ static void draw_layout(const Layout *layout) {
         int focused   = (focus_item_idx == (int)i);
         int val_edit  = focused && (edit_mode == 1);
 
-        const Font *font = w->font ? w->font : R->default_font;
-        uint8_t     cw   = font ? font->w : R->char_w;
-        uint8_t     fh   = font ? font->h : R->char_h;
+        uint8_t cw = R->char_w;
+        uint8_t fh = R->char_h;
 
         switch (w->type) {
             case W_LABEL: {
-                uint16_t fg  = w->colors ? w->colors->fg : T->text_fg;
+                uint16_t fg = w->colors ? w->colors->fg : T->text_fg;
                 int tlen = (int)strlen(w->text);
                 int16_t tx = (w->w > 0) ? x : (int16_t)(x - tlen * cw / 2);
-                DrawStyle s = { .fg = fg, .bg = T->screen_bg, .font = font };
+                DrawStyle s = { .fg = fg, .bg = T->screen_bg };
                 R->draw_text(tx, y, w->text, &s);
                 break;
             }
             case W_BTN: {
-                uint16_t fg  = w->colors ? w->colors->fg : T->text_fg;
-                uint16_t bg  = w->colors ? w->colors->bg : T->widget_bg;
+                uint16_t fg = w->colors ? w->colors->fg : T->text_fg;
+                uint16_t bg = w->colors ? w->colors->bg : T->widget_bg;
                 uint16_t border_col = focused ? T->border_focused : T->border_normal;
                 R->fill_rect(x, y, w->w, w->h, bg);
                 R->draw_border(x, y, w->w, w->h, border_col, 1);
                 int tlen = (int)strlen(w->text);
                 int16_t tx = (int16_t)(x + (w->w - tlen * cw) / 2);
                 int16_t ty = (int16_t)(y + (w->h - fh) / 2);
-                DrawStyle s = { .fg = fg, .bg = bg, .font = font };
+                DrawStyle s = { .fg = fg, .bg = bg };
                 R->draw_text(tx, ty, w->text, &s);
                 break;
             }
             case W_VALUE: {
-                uint16_t fg  = w->colors ? w->colors->fg : T->text_fg;
-                uint16_t bg  = w->colors ? w->colors->bg : T->widget_bg;
+                uint16_t fg = w->colors ? w->colors->fg : T->text_fg;
+                uint16_t bg = w->colors ? w->colors->bg : T->widget_bg;
                 char disp[48];
                 if (w->options && w->value)
                     snprintf(disp, sizeof(disp), "%s: %s",
@@ -175,9 +171,9 @@ static void draw_layout(const Layout *layout) {
                 int tlen = (int)strlen(disp);
                 int16_t tx = (int16_t)(x + (w->w - tlen * cw) / 2);
                 int16_t ty = (int16_t)(y + (w->h - fh) / 2);
-                DrawStyle s  = { .fg = fg,         .bg = bg, .font = font };
+                DrawStyle s  = { .fg = fg, .bg = bg };
                 DrawStyle sa = { .fg = val_edit ? T->border_editing : T->border_focused,
-                                 .bg = bg, .font = font };
+                                 .bg = bg };
                 R->draw_text(tx, ty, disp, &s);
                 if (focused) {
                     R->draw_text((int16_t)(x + cw), ty,
@@ -188,8 +184,8 @@ static void draw_layout(const Layout *layout) {
                 break;
             }
             case W_EDIT: {
-                uint16_t fg  = w->colors ? w->colors->fg : T->text_fg;
-                uint16_t bg  = w->colors ? w->colors->bg : T->widget_bg;
+                uint16_t fg = w->colors ? w->colors->fg : T->text_fg;
+                uint16_t bg = w->colors ? w->colors->bg : T->widget_bg;
                 uint16_t border_col = focused ? T->border_focused : T->border_normal;
                 R->fill_rect(x, y, w->w, w->h, bg);
                 R->draw_border(x, y, w->w, w->h, border_col, 1);
@@ -199,7 +195,7 @@ static void draw_layout(const Layout *layout) {
                 int tlen = (int)strlen(disp);
                 int16_t tx = (int16_t)(x + (w->w - tlen * cw) / 2);
                 int16_t ty = (int16_t)(y + (w->h - fh) / 2);
-                DrawStyle s = { .fg = fg, .bg = bg, .font = font };
+                DrawStyle s = { .fg = fg, .bg = bg };
                 R->draw_text(tx, ty, disp, &s);
                 break;
             }

@@ -25,8 +25,7 @@ static void my_fill_rect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t co
 }
 
 static void my_draw_text(int16_t x, int16_t y, const char *text, const DrawStyle *s) {
-    const Font *f = s->font;
-    if (!f) return;
+    const Font *f = &font_8x8;
     uint8_t fr, fg, fb, br, bg_, bb;
     rgb565(s->fg, &fr, &fg, &fb);
     rgb565(s->bg, &br, &bg_, &bb);
@@ -88,15 +87,14 @@ void render_impl_sdl_init(int screen_w, int screen_h, int sc) {
 
     static Render r;
     r = (Render){
-        .fill_rect    = my_fill_rect,
-        .draw_text    = my_draw_text,
-        .draw_border  = my_draw_border,
-        .flush        = my_flush,
-        .screen_w     = (uint16_t)screen_w,
-        .screen_h     = (uint16_t)screen_h,
-        .char_w       = font_8x8.w,
-        .char_h       = font_8x8.h,
-        .default_font = &font_8x8,
+        .fill_rect   = my_fill_rect,
+        .draw_text   = my_draw_text,
+        .draw_border = my_draw_border,
+        .flush       = my_flush,
+        .screen_w    = (uint16_t)screen_w,
+        .screen_h    = (uint16_t)screen_h,
+        .char_w      = font_8x8.w,
+        .char_h      = font_8x8.h,
     };
     render_set(&r);
 }

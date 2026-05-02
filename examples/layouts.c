@@ -1,6 +1,5 @@
 #include "layouts.h"
 #include "render.h"
-#include "fonts.h"
 
 // ── themes ───────────────────────────────────────────────────────────────────
 
@@ -67,7 +66,6 @@ static void go_reset(void);
 const Layout home_layout = LAYOUT(
     { .type  = W_LABEL,
       .text  = "HOME SCREEN",
-      .font  = &font_mono16,
       .align = ALIGN_TOP_MID,
       .y     = 4 },
 
@@ -99,7 +97,6 @@ const Layout home_layout = LAYOUT(
 const Layout settings_layout = LAYOUT(
     { .type  = W_LABEL,
       .text  = "SETTINGS",
-      .font  = &font_mono16,
       .align = ALIGN_TOP_MID,
       .y     = 4 },
 
@@ -138,7 +135,6 @@ const Layout settings_layout = LAYOUT(
 const Layout display_layout = LAYOUT(
     { .type  = W_LABEL,
       .text  = "DISPLAY",
-      .font  = &font_mono16,
       .align = ALIGN_TOP_MID,
       .y     = 4 },
 
@@ -176,7 +172,6 @@ const Layout display_layout = LAYOUT(
 const Layout network_layout = LAYOUT(
     { .type  = W_LABEL,
       .text  = "NETWORK",
-      .font  = &font_mono16,
       .align = ALIGN_TOP_MID,
       .y     = 4 },
 
@@ -207,7 +202,6 @@ const Layout network_layout = LAYOUT(
 const Layout wifi_layout = LAYOUT(
     { .type  = W_LABEL,
       .text  = "WIFI",
-      .font  = &font_mono16,
       .align = ALIGN_TOP_MID,
       .y     = 4 },
 
@@ -241,7 +235,6 @@ const Layout wifi_layout = LAYOUT(
 const Layout bluetooth_layout = LAYOUT(
     { .type  = W_LABEL,
       .text  = "BLUETOOTH",
-      .font  = &font_mono16,
       .align = ALIGN_TOP_MID,
       .y     = 4 },
 
@@ -275,7 +268,6 @@ const Layout bluetooth_layout = LAYOUT(
 const Layout system_layout = LAYOUT(
     { .type  = W_LABEL,
       .text  = "SYSTEM",
-      .font  = &font_mono16,
       .align = ALIGN_TOP_MID,
       .y     = 4 },
 
@@ -306,7 +298,6 @@ const Layout system_layout = LAYOUT(
 const Layout about_layout = LAYOUT(
     { .type  = W_LABEL,
       .text  = "ABOUT",
-      .font  = &font_mono16,
       .align = ALIGN_TOP_MID,
       .y     = 4 },
 
@@ -341,7 +332,6 @@ static const WidgetColors danger_btn   = { .fg = 0xFFFF, .bg = 0xC000 }; // whit
 const Layout reset_layout = LAYOUT(
     { .type   = W_LABEL,
       .text   = "RESET DEVICE?",
-      .font   = &font_mono16,
       .colors = &danger_label,
       .align  = ALIGN_TOP_MID,
       .y      = 4 },

@@ -3,9 +3,8 @@
 #include "widget.h"
 
 typedef struct {
-    uint16_t     fg;
-    uint16_t     bg;
-    const Font  *font;   // NULL → renderer default
+    uint16_t fg;
+    uint16_t bg;
 } DrawStyle;
 
 typedef struct {
@@ -32,11 +31,10 @@ typedef struct {
                         uint16_t color, uint8_t thickness);
     void (*flush)      (void);
 
-    uint16_t     screen_w;
-    uint16_t     screen_h;
-    uint8_t      char_w;
-    uint8_t      char_h;
-    const Font  *default_font;  // used when w->font == NULL; may be NULL for text-mode renderers
+    uint16_t screen_w;
+    uint16_t screen_h;
+    uint8_t  char_w;   // logical pixels per character column (text-mode renderers)
+    uint8_t  char_h;   // logical pixels per character row
 } Render;
 
 void  render_set(const Render *r);

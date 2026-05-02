@@ -2,13 +2,6 @@
 #include <stdint.h>
 
 typedef struct {
-    uint8_t        w;
-    uint8_t        h;
-    uint8_t        stride;   // bytes per glyph row
-    const uint8_t *data;     // [128][h * stride]
-} Font;
-
-typedef struct {
     uint16_t fg;
     uint16_t bg;
 } WidgetColors;
@@ -53,7 +46,6 @@ typedef struct {
     char    *buf;
     uint8_t  buf_len;
 
-    const Font        *font;    // NULL → renderer default
     const WidgetColors *colors; // NULL → theme default
 } Widget;
 
