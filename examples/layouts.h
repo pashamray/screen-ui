@@ -1,6 +1,8 @@
 #pragma once
 #include "widget.h"
 
+void layouts_tick(void);
+
 extern const Layout home_layout;
 extern const Layout settings_layout;
 extern const Layout display_layout;

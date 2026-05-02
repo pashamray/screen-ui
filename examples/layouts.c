@@ -1,5 +1,6 @@
 #include "layouts.h"
 #include "render.h"
+#include <stdio.h>
 
 // ── themes ───────────────────────────────────────────────────────────────────
 
@@ -44,6 +45,14 @@ static int bt_on      = 0;
 static int battery    = 75;
 static int signal_lvl = 60;
 
+// dynamic home screen sensor values
+static int  temp_val  = 23;
+static int  hum_val   = 55;
+static int  pres_val  = 1013;
+static char temp_buf[24] = "Temperature: 23 C";
+static char hum_buf[24]  = "Humidity:    55 %";
+static char pres_buf[24] = "Pressure: 1013 hPa";
+
 static const char *const theme_names[]   = { "Dark", "Light" };
 static const char *const toggle_names[]  = { "Disabled", "Enabled" };
 
@@ -72,17 +81,17 @@ const Layout home_layout = LAYOUT(
       .y     = 4 },
 
     { .type  = W_LABEL,
-      .text  = "Temperature: 23 C",
+      .text  = temp_buf,
       .align = ALIGN_CENTER,
       .y     = -20 },
 
     { .type  = W_LABEL,
-      .text  = "Humidity:    55 %",
+      .text  = hum_buf,
       .align = ALIGN_CENTER,
       .y     = 0 },
 
     { .type  = W_LABEL,
-      .text  = "Pressure: 1013 hPa",
+      .text  = pres_buf,
       .align = ALIGN_CENTER,
       .y     = 20 },
 
@@ -384,6 +393,46 @@ const Layout reset_layout = LAYOUT(
       .x = 50, .y = 20,
       .on_click = go_system },
 );
+
+// ── tick ─────────────────────────────────────────────────────────────────────
+
+void layouts_tick(void) {
+    static int n = 0;
+    n++;
+
+    static int temp_dir = 1;
+    static int hum_dir  = 1;
+    static int pres_dir = -1;
+    static int sig_dir  = 1;
+
+    if (n % 8 == 0) {
+        temp_val += temp_dir;
+        if (temp_val >= 26) temp_dir = -1;
+        if (temp_val <= 19) temp_dir =  1;
+        snprintf(temp_buf, sizeof(temp_buf), "Temperature: %d C", temp_val);
+    }
+    if (n % 12 == 0) {
+        hum_val += hum_dir;
+        if (hum_val >= 65) hum_dir = -1;
+        if (hum_val <= 48) hum_dir =  1;
+        snprintf(hum_buf, sizeof(hum_buf), "Humidity:    %d %%", hum_val);
+    }
+    if (n % 20 == 0) {
+        pres_val += pres_dir;
+        if (pres_val >= 1020) pres_dir = -1;
+        if (pres_val <= 1008) pres_dir =  1;
+        snprintf(pres_buf, sizeof(pres_buf), "Pressure: %d hPa", pres_val);
+    }
+    if (n % 40 == 0) {
+        battery--;
+        if (battery < 0) battery = 100;
+    }
+    if (n % 5 == 0) {
+        signal_lvl += sig_dir * 2;
+        if (signal_lvl >= 95) sig_dir = -1;
+        if (signal_lvl <= 20) sig_dir =  1;
+    }
+}
 
 // ── callbacks ────────────────────────────────────────────────────────────────
 

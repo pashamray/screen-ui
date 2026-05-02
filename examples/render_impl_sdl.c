@@ -1,5 +1,6 @@
 #include "render.h"
 #include "fonts.h"
+#include "layouts.h"
 #include <SDL2/SDL.h>
 #include <stdlib.h>
 #include <string.h>
@@ -291,7 +292,12 @@ void sdl_wait_key(void) {
     SDL_Event e;
     int was_str_edit = 0;
 
-    while (SDL_WaitEvent(&e)) {
+    while (1) {
+        if (!SDL_WaitEventTimeout(&e, 150)) {
+            layouts_tick();
+            render_refresh();
+            continue;
+        }
         if (e.type == SDL_QUIT) exit(0);
 
         int str_edit = render_in_edit_mode();
