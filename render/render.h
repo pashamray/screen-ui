@@ -24,7 +24,10 @@ extern const Theme theme_default;
 void render_set_theme(const Theme *t);
 
 
-typedef struct {
+typedef struct Render Render;
+
+struct Render {
+    // ── drawing primitives ────────────────────────────────────────────────────
     void (*fill_rect)  (int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
     void (*draw_text)  (int16_t x, int16_t y, const char *text, const DrawStyle *style);
     void (*draw_border)(int16_t x, int16_t y, int16_t w, int16_t h,
@@ -35,7 +38,13 @@ typedef struct {
     uint16_t screen_h;
     uint8_t  char_w;   // logical pixels per character column (text-mode renderers)
     uint8_t  char_h;   // logical pixels per character row
-} Render;
+
+    // ── optional widget overrides (NULL → built-in drawing) ───────────────────
+    void (*draw_btn)  (const Render *r, int16_t x, int16_t y,
+                       const Widget *w, const Theme *t, int focused);
+    void (*draw_value)(const Render *r, int16_t x, int16_t y,
+                       const Widget *w, const Theme *t, int focused, int editing);
+};
 
 void  render_set(const Render *r);
 void  render_screen(const Layout *layout);
