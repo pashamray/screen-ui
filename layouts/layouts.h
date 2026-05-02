@@ -1,0 +1,12 @@
+#pragma once
+#include "widget.h"
+
+extern const Layout home_layout;
+extern const Layout settings_layout;
+extern const Layout display_layout;
+extern const Layout network_layout;
+extern const Layout wifi_layout;
+extern const Layout bluetooth_layout;
+extern const Layout system_layout;
+extern const Layout about_layout;
+extern const Layout reset_layout;
