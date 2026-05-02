@@ -41,6 +41,8 @@ static int brightness = 80;
 static int theme_idx  = 0;
 static int wifi_on    = 1;
 static int bt_on      = 0;
+static int battery    = 75;
+static int signal_lvl = 60;
 
 static const char *const theme_names[]   = { "Dark", "Light" };
 static const char *const toggle_names[]  = { "Disabled", "Enabled" };
@@ -83,6 +85,32 @@ const Layout home_layout = LAYOUT(
       .text  = "Pressure: 1013 hPa",
       .align = ALIGN_CENTER,
       .y     = 20 },
+
+    { .type  = W_LABEL,
+      .text  = "Battery",
+      .align = ALIGN_CENTER,
+      .x     = -20, .y = 46 },
+
+    { .type  = W_PROGRESS,
+      .align = ALIGN_CENTER,
+      .x = -20, .w = 150, .h = 12,
+      .y     = 66,
+      .value = &battery,
+      .min   = 0,
+      .max   = 100 },
+
+    { .type  = W_LABEL,
+      .text  = "Sig",
+      .align = ALIGN_TOP_LEFT,
+      .x = 214, .y = 94 },
+
+    { .type  = W_PROGRESS,
+      .align = ALIGN_TOP_LEFT,
+      .x = 218, .y = 106,
+      .w = 14, .h = 72,
+      .value = &signal_lvl,
+      .min   = 0,
+      .max   = 100 },
 
     { .type     = W_BTN,
       .text     = "Settings",

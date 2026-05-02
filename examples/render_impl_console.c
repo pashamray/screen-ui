@@ -160,6 +160,33 @@ static void console_draw_value(const Render *r, int16_t x, int16_t y,
     my_draw_text(tx, ty, disp, &s);
 }
 
+static void console_draw_progress(const Render *r, int16_t x, int16_t y,
+                                   const Widget *w, const Theme *t) {
+    (void)r;
+    uint16_t bg   = w->colors ? w->colors->bg : t->widget_bg;
+    uint16_t fill = w->colors ? w->colors->fg : t->border_focused;
+
+    my_fill_rect(x, y, w->w, w->h, bg);
+    my_draw_border(x, y, w->w, w->h, t->border_subtle, 1);
+
+    if (w->value && w->max > w->min) {
+        int range = w->max - w->min;
+        int val   = *w->value < w->min ? w->min :
+                    *w->value > w->max ? w->max : *w->value;
+        if (w->h > w->w) {
+            int16_t fh = (int16_t)((val - w->min) * (w->h - 2) / range);
+            if (fh > 0)
+                my_fill_rect((int16_t)(x + 1), (int16_t)(y + w->h - 1 - fh),
+                             (int16_t)(w->w - 2), fh, fill);
+        } else {
+            int16_t fw = (int16_t)((val - w->min) * (w->w - 2) / range);
+            if (fw > 0)
+                my_fill_rect((int16_t)(x + 1), (int16_t)(y + 1),
+                             fw, (int16_t)(w->h - 2), fill);
+        }
+    }
+}
+
 static void console_draw_edit(const Render *r, int16_t x, int16_t y,
                                const Widget *w, const Theme *t, int focused) {
     (void)r;
@@ -183,10 +210,11 @@ static const Render render_impl_console = {
     .flush        = my_flush,
     .screen_w     = LOG_W,
     .screen_h     = LOG_H,
-    .draw_label   = console_draw_label,
-    .draw_btn     = console_draw_btn,
-    .draw_value   = console_draw_value,
-    .draw_edit    = console_draw_edit,
+    .draw_label    = console_draw_label,
+    .draw_btn      = console_draw_btn,
+    .draw_value    = console_draw_value,
+    .draw_progress = console_draw_progress,
+    .draw_edit     = console_draw_edit,
 };
 
 void console_render_init(void) {

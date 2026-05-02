@@ -157,6 +157,34 @@ static void menu_draw_label(const Render *r, int16_t x, int16_t y,
     my_draw_text(tx, y, w->text, &s);
 }
 
+static void menu_draw_progress(const Render *r, int16_t x, int16_t y,
+                               const Widget *w, const Theme *t)
+{
+    (void)r;
+    uint16_t bg   = w->colors ? w->colors->bg : t->widget_bg;
+    uint16_t fill = w->colors ? w->colors->fg : t->border_focused;
+
+    my_fill_rect(x, y, w->w, w->h, bg);
+    my_draw_border(x, y, w->w, w->h, t->border_subtle, 1);
+
+    if (w->value && w->max > w->min) {
+        int range = w->max - w->min;
+        int val   = *w->value < w->min ? w->min :
+                    *w->value > w->max ? w->max : *w->value;
+        if (w->h > w->w) {
+            int16_t fh = (int16_t)((val - w->min) * (w->h - 2) / range);
+            if (fh > 0)
+                my_fill_rect((int16_t)(x + 1), (int16_t)(y + w->h - 1 - fh),
+                             (int16_t)(w->w - 2), fh, fill);
+        } else {
+            int16_t fw = (int16_t)((val - w->min) * (w->w - 2) / range);
+            if (fw > 0)
+                my_fill_rect((int16_t)(x + 1), (int16_t)(y + 1),
+                             fw, (int16_t)(w->h - 2), fill);
+        }
+    }
+}
+
 static void menu_draw_edit(const Render *r, int16_t x, int16_t y,
                            const Widget *w, const Theme *t, int focused)
 {
@@ -252,6 +280,7 @@ void render_impl_sdl_init(int screen_w, int screen_h, int sc) {
         .draw_label       = menu_draw_label,
         .draw_btn         = menu_draw_btn,
         .draw_value       = menu_draw_value,
+        .draw_progress    = menu_draw_progress,
         .draw_edit        = menu_draw_edit,
     };
     render_set(&r);

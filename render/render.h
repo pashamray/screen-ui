@@ -24,14 +24,16 @@ struct Render {
     uint16_t screen_h;
 
     // ── widget draw callbacks ─────────────────────────────────────────────────
-    void (*draw_label)(const Render *r, int16_t x, int16_t y,
-                       const Widget *w, const Theme *t);
-    void (*draw_btn)  (const Render *r, int16_t x, int16_t y,
-                       const Widget *w, const Theme *t, int focused);
-    void (*draw_value)(const Render *r, int16_t x, int16_t y,
-                       const Widget *w, const Theme *t, int focused, int editing);
-    void (*draw_edit) (const Render *r, int16_t x, int16_t y,
-                       const Widget *w, const Theme *t, int focused);
+    void (*draw_label)   (const Render *r, int16_t x, int16_t y,
+                          const Widget *w, const Theme *t);
+    void (*draw_btn)     (const Render *r, int16_t x, int16_t y,
+                          const Widget *w, const Theme *t, int focused);
+    void (*draw_value)   (const Render *r, int16_t x, int16_t y,
+                          const Widget *w, const Theme *t, int focused, int editing);
+    void (*draw_progress)(const Render *r, int16_t x, int16_t y,
+                          const Widget *w, const Theme *t);
+    void (*draw_edit)    (const Render *r, int16_t x, int16_t y,
+                          const Widget *w, const Theme *t, int focused);
 };
 
 void  render_set(const Render *r);

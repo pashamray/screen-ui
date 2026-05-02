@@ -61,10 +61,11 @@ static void draw_layout(const Layout *layout) {
         int focused  = (focus_item_idx == (int)i);
         int val_edit = focused && (edit_mode == 1);
         switch (w->type) {
-            case W_LABEL: if (R->draw_label) R->draw_label(R, x, y, w, T);                   break;
-            case W_BTN:   if (R->draw_btn)   R->draw_btn(R, x, y, w, T, focused);            break;
-            case W_VALUE: if (R->draw_value) R->draw_value(R, x, y, w, T, focused, val_edit); break;
-            case W_EDIT:  if (R->draw_edit)  R->draw_edit(R, x, y, w, T, focused);           break;
+            case W_LABEL:    if (R->draw_label)    R->draw_label(R, x, y, w, T);                    break;
+            case W_BTN:      if (R->draw_btn)      R->draw_btn(R, x, y, w, T, focused);             break;
+            case W_VALUE:    if (R->draw_value)    R->draw_value(R, x, y, w, T, focused, val_edit); break;
+            case W_PROGRESS: if (R->draw_progress) R->draw_progress(R, x, y, w, T);                 break;
+            case W_EDIT:     if (R->draw_edit)     R->draw_edit(R, x, y, w, T, focused);            break;
             default: break;
         }
     }

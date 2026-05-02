@@ -9,8 +9,9 @@ typedef struct {
 typedef enum {
     W_LABEL,
     W_BTN,
-    W_VALUE,  // inline editable: int or enum options
-    W_EDIT,   // string input
+    W_VALUE,    // inline editable: int or enum options
+    W_PROGRESS, // read-only bar: value/min/max
+    W_EDIT,     // string input
     W_RECT,
     W_IMG,
 } WidgetType;
