@@ -51,19 +51,17 @@ void  render_screen(const Layout *layout);
 void  render_list(const ListLayout *list);
 void  render_refresh(void);
 
-// widget focus navigation
-void  render_focus_next(void);
-void  render_focus_prev(void);
-// change W_VALUE / move W_EDIT cursor
-void  render_focus_inc(void);
-void  render_focus_dec(void);
-// activate focused widget (W_BTN on_click / enter W_EDIT / confirm edit)
-void  render_focus_activate(void);
+// input events — dispatch on_key first (normal mode), then act on focus
+void  render_next(void);            // navigate forward / decrement value in edit
+void  render_prev(void);            // navigate back   / increment value in edit
+void  render_activate(void);        // confirm edit / enter edit / trigger on_click
+void  render_cancel(void);          // cancel edit (restore backup) / back via on_key
+void  render_inc(void);             // increment value (encoder +)
+void  render_dec(void);             // decrement value (encoder −)
 
 // edit mode queries
 int   render_in_value_edit(void);   // W_VALUE: encoder rotation changes value
 int   render_in_edit_mode(void);    // W_EDIT: string input active
-void  render_cancel(void);          // cancel any edit mode and restore backup
 
 // W_EDIT — direct character input (SDL / keyboard platforms)
 void  render_edit_char(char c);

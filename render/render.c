@@ -41,7 +41,8 @@ static int dispatch_key(RenderKey key) {
 static void resolve(const Widget *w, int16_t *ox, int16_t *oy) {
     int16_t x  = w->x, y  = w->y;
     int16_t sw = R->screen_w, sh = R->screen_h;
-    int16_t ww = w->w,        wh = w->h;
+    int16_t ww = w->w;
+    int16_t wh = w->h ? w->h : (int16_t)w->font.h;
 
     switch (w->align & ALIGN_H_MASK) {
         case ALIGN_H_MID:   x += sw/2 - ww/2; break;
@@ -152,11 +153,26 @@ static void list_scroll_adjust(uint8_t row_h) {
         scroll_top = focus_item_idx - visible + 1;
 }
 
-void render_focus_next(void) {
+// ── internal focus functions (no dispatch) ────────────────────────────────────
+
+static void focus_next(void) {
     if (current_list) {
-        if (edit_mode == 1) return;
+        if (edit_mode == 1) {
+            const ListItem *item = focus_item_idx >= 0 ? &current_list->items[focus_item_idx] : NULL;
+            if (item && item->type == LI_VALUE && item->value) {
+                if (item->options) {
+                    *item->value = (*item->value - 1 + item->options_count) % item->options_count;
+                } else {
+                    int s = item->step ? item->step : 1;
+                    int v = *item->value - s;
+                    *item->value = (v < item->min) ? item->min : v;
+                }
+                if (item->on_change) item->on_change(*item->value);
+                render_refresh();
+            }
+            return;
+        }
         if (focus_item_idx < 0) return;
-        if (dispatch_key(RENDER_KEY_NEXT)) return;
         int n = (int)current_list->count;
         for (int i = 1; i <= n; i++) {
             int idx = (focus_item_idx + i) % n;
@@ -169,14 +185,27 @@ void render_focus_next(void) {
         return;
     }
     if (!current_layout) return;
-    if (edit_mode == 1) return;
-    if (edit_mode == 2) {          // in string-edit — move cursor right
+    if (edit_mode == 1) {
+        const Widget *w = focus_item_idx >= 0 ? &current_layout->items[focus_item_idx] : NULL;
+        if (w && w->type == W_VALUE && w->value) {
+            if (w->options) {
+                *w->value = (*w->value - 1 + w->options_count) % w->options_count;
+            } else {
+                int s = w->step ? w->step : 1;
+                int v = *w->value - s;
+                *w->value = (v < w->min) ? w->min : v;
+            }
+            if (w->on_change) w->on_change(*w->value);
+            render_refresh();
+        }
+        return;
+    }
+    if (edit_mode == 2) {
         const Widget *w = &current_layout->items[focus_item_idx];
         if (w->buf && edit_cursor < (int)strlen(w->buf))
             { edit_cursor++; render_refresh(); }
         return;
     }
-    if (dispatch_key(RENDER_KEY_NEXT)) return;
     int n = (int)current_layout->count;
     for (int i = 1; i <= n; i++) {
         int idx = (focus_item_idx + i) % n;
@@ -185,11 +214,24 @@ void render_focus_next(void) {
     }
 }
 
-void render_focus_prev(void) {
+static void focus_prev(void) {
     if (current_list) {
-        if (edit_mode == 1) return;
+        if (edit_mode == 1) {
+            const ListItem *item = focus_item_idx >= 0 ? &current_list->items[focus_item_idx] : NULL;
+            if (item && item->type == LI_VALUE && item->value) {
+                if (item->options) {
+                    *item->value = (*item->value + 1) % item->options_count;
+                } else {
+                    int s = item->step ? item->step : 1;
+                    int v = *item->value + s;
+                    *item->value = (v > item->max) ? item->max : v;
+                }
+                if (item->on_change) item->on_change(*item->value);
+                render_refresh();
+            }
+            return;
+        }
         if (focus_item_idx < 0) return;
-        if (dispatch_key(RENDER_KEY_PREV)) return;
         int n = (int)current_list->count;
         for (int i = 1; i <= n; i++) {
             int idx = (focus_item_idx - i + n) % n;
@@ -202,12 +244,25 @@ void render_focus_prev(void) {
         return;
     }
     if (!current_layout) return;
-    if (edit_mode == 1) return;
+    if (edit_mode == 1) {
+        const Widget *w = focus_item_idx >= 0 ? &current_layout->items[focus_item_idx] : NULL;
+        if (w && w->type == W_VALUE && w->value) {
+            if (w->options) {
+                *w->value = (*w->value + 1) % w->options_count;
+            } else {
+                int s = w->step ? w->step : 1;
+                int v = *w->value + s;
+                *w->value = (v > w->max) ? w->max : v;
+            }
+            if (w->on_change) w->on_change(*w->value);
+            render_refresh();
+        }
+        return;
+    }
     if (edit_mode == 2) {
         if (edit_cursor > 0) { edit_cursor--; render_refresh(); }
         return;
     }
-    if (dispatch_key(RENDER_KEY_PREV)) return;
     int n = (int)current_layout->count;
     for (int i = 1; i <= n; i++) {
         int idx = (focus_item_idx - i + n) % n;
@@ -216,11 +271,10 @@ void render_focus_prev(void) {
     }
 }
 
-void render_focus_inc(void) {
+static void focus_inc(void) {
     if (current_list) {
-        if (focus_item_idx < 0) return;
-        const ListItem *item = &current_list->items[focus_item_idx];
-        if (edit_mode == 1 && item->type == LI_VALUE && item->value) {
+        const ListItem *item = focus_item_idx >= 0 ? &current_list->items[focus_item_idx] : NULL;
+        if (item && edit_mode == 1 && item->type == LI_VALUE && item->value) {
             if (item->options) {
                 *item->value = (*item->value + 1) % item->options_count;
             } else {
@@ -230,15 +284,13 @@ void render_focus_inc(void) {
             }
             if (item->on_change) item->on_change(*item->value);
             render_refresh();
-        } else if (edit_mode == 0) {
-            dispatch_key(RENDER_KEY_INC);
         }
         return;
     }
-    if (!current_layout || focus_item_idx < 0) return;
-    const Widget *w = &current_layout->items[focus_item_idx];
-
-    if (edit_mode == 2) {   // string edit: cycle character up
+    if (!current_layout) return;
+    const Widget *w = focus_item_idx >= 0 ? &current_layout->items[focus_item_idx] : NULL;
+    if (!w) return;
+    if (edit_mode == 2) {
         if (w->buf && edit_cursor < (int)strlen(w->buf)) {
             char c = w->buf[edit_cursor];
             w->buf[edit_cursor] = (c < '~') ? c + 1 : ' ';
@@ -256,16 +308,13 @@ void render_focus_inc(void) {
         }
         if (w->on_change) w->on_change(*w->value);
         render_refresh();
-        return;
     }
-    dispatch_key(RENDER_KEY_INC);
 }
 
-void render_focus_dec(void) {
+static void focus_dec(void) {
     if (current_list) {
-        if (focus_item_idx < 0) return;
-        const ListItem *item = &current_list->items[focus_item_idx];
-        if (edit_mode == 1 && item->type == LI_VALUE && item->value) {
+        const ListItem *item = focus_item_idx >= 0 ? &current_list->items[focus_item_idx] : NULL;
+        if (item && edit_mode == 1 && item->type == LI_VALUE && item->value) {
             if (item->options) {
                 *item->value = (*item->value - 1 + item->options_count) % item->options_count;
             } else {
@@ -275,14 +324,12 @@ void render_focus_dec(void) {
             }
             if (item->on_change) item->on_change(*item->value);
             render_refresh();
-        } else if (edit_mode == 0) {
-            dispatch_key(RENDER_KEY_DEC);
         }
         return;
     }
-    if (!current_layout || focus_item_idx < 0) return;
-    const Widget *w = &current_layout->items[focus_item_idx];
-
+    if (!current_layout) return;
+    const Widget *w = focus_item_idx >= 0 ? &current_layout->items[focus_item_idx] : NULL;
+    if (!w) return;
     if (edit_mode == 2) {
         if (w->buf && edit_cursor < (int)strlen(w->buf)) {
             char c = w->buf[edit_cursor];
@@ -301,21 +348,18 @@ void render_focus_dec(void) {
         }
         if (w->on_change) w->on_change(*w->value);
         render_refresh();
-        return;
     }
-    dispatch_key(RENDER_KEY_DEC);
 }
 
-void render_focus_activate(void) {
+static void focus_activate(void) {
     if (current_list) {
-        if (focus_item_idx < 0) return;
-        const ListItem *item = &current_list->items[focus_item_idx];
-        if (edit_mode == 1) {
+        const ListItem *item = focus_item_idx >= 0 ? &current_list->items[focus_item_idx] : NULL;
+        if (item && edit_mode == 1) {
             edit_mode = 0;
             render_refresh();
             return;
         }
-        if (dispatch_key(RENDER_KEY_ACTIVATE)) return;
+        if (!item) return;
         if (item->type == LI_VALUE && item->value) {
             value_backup = *item->value;
             edit_mode    = 1;
@@ -327,15 +371,14 @@ void render_focus_activate(void) {
         }
         return;
     }
-    if (!current_layout || focus_item_idx < 0) return;
-    const Widget *w = &current_layout->items[focus_item_idx];
-
-    if (edit_mode == 1 || edit_mode == 2) {
+    if (!current_layout) return;
+    const Widget *w = focus_item_idx >= 0 ? &current_layout->items[focus_item_idx] : NULL;
+    if (w && (edit_mode == 1 || edit_mode == 2)) {
         edit_mode = 0;
         render_refresh();
         return;
     }
-    if (dispatch_key(RENDER_KEY_ACTIVATE)) return;
+    if (!w) return;
     if (w->type == W_VALUE && w->value) {
         value_backup = *w->value;
         edit_mode = 1;
@@ -352,29 +395,21 @@ void render_focus_activate(void) {
     if (w->on_click) w->on_click();
 }
 
-int render_in_value_edit(void) { return edit_mode == 1; }
-int render_in_edit_mode(void)  { return edit_mode == 2; }
-
-void render_cancel(void) {
+static void focus_cancel(void) {
     if (current_list) {
-        if (focus_item_idx < 0) return;
-        const ListItem *item = &current_list->items[focus_item_idx];
-        if (edit_mode == 1 && item->value) {
+        const ListItem *item = focus_item_idx >= 0 ? &current_list->items[focus_item_idx] : NULL;
+        if (item && edit_mode == 1 && item->value) {
             *item->value = value_backup;
             if (item->on_change) item->on_change(*item->value);
             edit_mode = 0;
             render_refresh();
-        } else if (edit_mode == 0) {
-            dispatch_key(RENDER_KEY_CANCEL);
         }
         return;
     }
-    if (!current_layout || focus_item_idx < 0) return;
+    if (!current_layout) return;
+    if (edit_mode == 0) return;
+    if (focus_item_idx < 0) return;
     const Widget *w = &current_layout->items[focus_item_idx];
-    if (edit_mode == 0) {
-        dispatch_key(RENDER_KEY_CANCEL);
-        return;
-    }
     if (edit_mode == 1 && w->value) {
         *w->value = value_backup;
         if (w->on_change) w->on_change(*w->value);
@@ -386,6 +421,19 @@ void render_cancel(void) {
     edit_mode = 0;
     render_refresh();
 }
+
+// ── public event API ──────────────────────────────────────────────────────────
+// dispatch_key is tried first in normal mode; if consumed, focus_* is skipped.
+
+void render_next(void)     { if (edit_mode == 0 && dispatch_key(RENDER_KEY_NEXT))     return; focus_next(); }
+void render_prev(void)     { if (edit_mode == 0 && dispatch_key(RENDER_KEY_PREV))     return; focus_prev(); }
+void render_activate(void) { if (edit_mode == 0 && dispatch_key(RENDER_KEY_ACTIVATE)) return; focus_activate(); }
+void render_cancel(void)   { if (edit_mode == 0 && dispatch_key(RENDER_KEY_CANCEL))   return; focus_cancel(); }
+void render_inc(void)      { if (edit_mode == 0 && dispatch_key(RENDER_KEY_INC))      return; focus_inc(); }
+void render_dec(void)      { if (edit_mode == 0 && dispatch_key(RENDER_KEY_DEC))      return; focus_dec(); }
+
+int render_in_value_edit(void) { return edit_mode == 1; }
+int render_in_edit_mode(void)  { return edit_mode == 2; }
 
 void render_edit_char(char c) {
     if (edit_mode != 2 || !current_layout || focus_item_idx < 0) return;

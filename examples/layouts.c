@@ -66,7 +66,8 @@ static int  pres_val  = 1013;
 static char temp_buf[24] = "Temperature: 23 C";
 static char hum_buf[24]  = "Humidity:    55 %";
 static char pres_buf[24] = "Pressure: 1013 hPa";
-static char wifi_buf[16] = "WiFi: On";
+static char wifi_buf[16]       = "WiFi: On";
+static char brightness_buf[24] = "Bright: 80%";
 
 static const char *const theme_names[]   = { "Dark", "Light" };
 static const char *const toggle_names[]  = { "Disabled", "Enabled" };
@@ -88,6 +89,7 @@ static void go_about(void);
 static void go_reset(void);
 static void go_border_demo(void);
 static void go_demo_list(void);
+static void go_fonts_demo(void);
 
 // ── key handlers (cancel = navigate back) ───────────────────────────────────
 
@@ -102,7 +104,22 @@ static int on_key_back_to_system(RenderKey key)
 
 // ── Home ────────────────────────────────────────────────────────────────────
 
-const Layout home_layout = LAYOUT(NULL,
+static int home_on_key(RenderKey key) {
+    if (key == RENDER_KEY_INC || key == RENDER_KEY_DEC) {
+        if (key == RENDER_KEY_INC) {
+           brightness = brightness < 100 ? brightness + 10 : 100;
+        }
+        if (key == RENDER_KEY_DEC) {
+           brightness = brightness > 10 ? brightness - 10 : 10;
+        }
+        snprintf(brightness_buf, sizeof(brightness_buf), "Bright: %d%%", brightness);
+        render_refresh();
+        return 1;
+    }
+    return 0;
+}
+
+const Layout home_layout = LAYOUT(home_on_key,
     { .type  = W_LABEL,
       .text  = "HOME SCREEN",
       .align = ALIGN_TOP_MID,
@@ -129,14 +146,19 @@ const Layout home_layout = LAYOUT(NULL,
       .y     = 20 },
 
     { .type  = W_LABEL,
+      .text  = brightness_buf,
+      .align = ALIGN_CENTER,
+      .y     = 46 },
+
+    { .type  = W_LABEL,
       .text  = "Battery",
       .align = ALIGN_CENTER,
-      .x     = -20, .y = 46 },
+      .x     = -20, .y = 62 },
 
     { .type  = W_PROGRESS,
       .align = ALIGN_CENTER,
       .x = -20, .w = 150, .h = 12,
-      .y     = 66,
+      .y     = 82,
       .value = &battery,
       .min   = 0,
       .max   = 100 },
@@ -345,35 +367,42 @@ const Layout system_layout = LAYOUT(on_key_back_to_settings,
       .text     = "About",
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
-      .y = -64,
+      .y = -80,
       .on_click = go_about },
 
     { .type     = W_BTN,
       .text     = "Border Demo",
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
-      .y = -32,
+      .y = -48,
       .on_click = go_border_demo },
 
     { .type     = W_BTN,
       .text     = "List Demo",
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
-      .y = 0,
+      .y = -16,
       .on_click = go_demo_list },
+
+    { .type     = W_BTN,
+      .text     = "Font Demo",
+      .align    = ALIGN_CENTER,
+      .w = 128, .h = 24,
+      .y = 16,
+      .on_click = go_fonts_demo },
 
     { .type     = W_BTN,
       .text     = "Reset",
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
-      .y = 32,
+      .y = 48,
       .on_click = go_reset },
 
     { .type     = W_BTN,
       .text     = "Back",
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
-      .y = 64,
+      .y = 80,
       .on_click = go_settings },
 );
 
@@ -539,6 +568,49 @@ const ListLayout demo_list = LIST_LAYOUT(on_key_back_to_system,
     { .type = LI_BTN, .text = "Back", .on_click = go_system },
 );
 
+// ── Font demo ────────────────────────────────────────────────────────────────
+
+static const WidgetColors hint_color = { .fg = 0x8410 };
+
+const Layout fonts_demo_layout = LAYOUT(on_key_back_to_system,
+    { .type = W_LABEL, .text = "FONT SIZES",
+      .align = ALIGN_TOP_MID, .y = 2 },
+
+    { .type = W_LABEL, .text = "Noto Sans",
+      .colors = &hint_color, .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 14 },
+    { .type = W_LABEL, .text = "10: Abc Def 012 !?",
+      .font = { .w = 10, .h = 11, .name = "noto10" },
+      .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 24 },
+    { .type = W_LABEL, .text = "12: Abc Def 012 !?",
+      .font = { .w = 12, .h = 13, .name = "noto12" },
+      .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 37 },
+    { .type = W_LABEL, .text = "16: Abc Def 012",
+      .font = { .w = 15, .h = 17, .name = "noto16" },
+      .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 52 },
+    { .type = W_LABEL, .text = "20: Abc 012",
+      .font = { .w = 19, .h = 21, .name = "noto20" },
+      .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 71 },
+
+    { .type = W_LABEL, .text = "Roboto",
+      .colors = &hint_color, .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 96 },
+    { .type = W_LABEL, .text = "10: Abc Def 012 !?",
+      .font = { .w = 9, .h = 13, .name = "roboto10" },
+      .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 106 },
+    { .type = W_LABEL, .text = "12: Abc Def 012 !?",
+      .font = { .w = 11, .h = 14, .name = "roboto12" },
+      .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 121 },
+    { .type = W_LABEL, .text = "16: Abc Def 012",
+      .font = { .w = 15, .h = 19, .name = "roboto16" },
+      .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 137 },
+    { .type = W_LABEL, .text = "20: Abc 012",
+      .font = { .w = 18, .h = 22, .name = "roboto20" },
+      .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 158 },
+
+    { .type = W_BTN, .text = "Back",
+      .align = ALIGN_BOTTOM_MID, .w = 96, .h = 24, .y = -16,
+      .on_click = go_system },
+);
+
 // ── tick ─────────────────────────────────────────────────────────────────────
 
 void layouts_tick(void) {
@@ -594,3 +666,4 @@ static void go_about(void)       { render_screen(&about_layout); }
 static void go_reset(void)       { render_screen(&reset_layout); }
 static void go_border_demo(void) { render_screen(&border_demo_layout); }
 static void go_demo_list(void)   { render_list(&demo_list); }
+static void go_fonts_demo(void)  { render_screen(&fonts_demo_layout); }

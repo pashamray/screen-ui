@@ -6,6 +6,12 @@ typedef struct {
     uint16_t bg;
 } WidgetColors;
 
+typedef struct {
+    uint8_t     w;    // character cell width  (used by renderer for text layout)
+    uint8_t     h;    // character cell height (used by core for alignment math)
+    const char *name; // renderer looks this up to select the bitmap font; NULL = default
+} WidgetFont;
+
 typedef enum {
     W_LABEL,
     W_BTN,
@@ -63,6 +69,7 @@ typedef struct {
     uint8_t  buf_len;
 
     const WidgetColors *colors; // NULL → theme default
+    WidgetFont          font;   // zero = renderer default
 } Widget;
 
 typedef enum {

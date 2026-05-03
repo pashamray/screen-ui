@@ -227,20 +227,21 @@ static void console_draw_list_item(const Render *r,
         return;
     }
 
-    uint16_t brd = (item->type == LI_VALUE && editing) ? t->border_editing :
-                   focused                              ? t->border_focused :
-                                                         t->border_subtle;
-    my_draw_border(x, y, (int16_t)row_w, (int16_t)row_h, brd, 1);
-    DrawStyle s = { .fg = fg, .bg = row_bg };
+    int16_t  tx = (int16_t)(x + pad + (focused ? cw : 0));
+    DrawStyle s  = { .fg = fg, .bg = row_bg };
+
+    if (focused) {
+        DrawStyle sc = { .fg = t->border_focused, .bg = row_bg };
+        my_draw_text((int16_t)(x + pad), ty, ">", &sc);
+    }
 
     if (item->type == LI_BTN) {
-        my_draw_text((int16_t)(x + pad), ty, item->text, &s);
-        my_draw_text((int16_t)(x + (int16_t)row_w - 2 * cw), ty, ">", &s);
+        my_draw_text(tx, ty, item->text, &s);
         return;
     }
 
     /* LI_VALUE */
-    my_draw_text((int16_t)(x + pad), ty, item->text, &s);
+    my_draw_text(tx, ty, item->text, &s);
 
     char val_str[32];
     if (item->options && item->value) {
@@ -256,7 +257,7 @@ static void console_draw_list_item(const Render *r,
 
     int16_t vlen = (int16_t)strlen(val_str);
     int16_t vx   = (int16_t)(x + (int16_t)row_w - (vlen + 2) * cw);
-    if (vx < x + pad) vx = (int16_t)(x + pad);
+    if (vx < tx + cw) vx = (int16_t)(tx + cw);
     my_draw_text(vx, ty, val_str, &s);
 
     if (editing) {
@@ -299,10 +300,7 @@ void render_init(void)     { console_render_init(); }
 void render_wait_key(void) {
     char buf[64];
     for (;;) {
-        if (render_in_value_edit())
-            printf("\033[%d;0H\033[0m[h/l=change  Enter=confirm  z=cancel  q=quit] ", ROWS + 1);
-        else
-            printf("\033[%d;0H\033[0m[j/k=nav  Enter=edit/select  z=back  q=quit]  ", ROWS + 1);
+        printf("\033[%d;0H\033[0m[j/k=nav/change  Enter=select  z=back  q=quit]   ", ROWS + 1);
         fflush(stdout);
 
         if (!fgets(buf, sizeof(buf), stdin)) return;
@@ -310,30 +308,21 @@ void render_wait_key(void) {
 
         if (key == 'q' || key == 'Q') return;
 
-        if (render_in_value_edit()) {
-            // ── W_VALUE edit mode (analogous to encoder rotation) ──────────
-            if (key == 'l' || key == 'L') { render_focus_inc(); render_refresh(); }
-            else if (key == 'h' || key == 'H') { render_focus_dec(); render_refresh(); }
-            else if (key == '\n') render_focus_activate();
-            else if (key == 'z' || key == 'Z') render_cancel();
-        } else {
-            // ── normal navigation mode ─────────────────────────────────────
-            if (key == 'j' || key == 'J') { render_focus_next(); render_refresh(); }
-            else if (key == 'k' || key == 'K') { render_focus_prev(); render_refresh(); }
-            else if (key == 'z' || key == 'Z') render_cancel();
-            else if (key == '\n') {
-                if (render_focused_type() == W_EDIT) {
-                    printf("\033[%d;0H\033[0mNew value: ", ROWS + 1);
-                    fflush(stdout);
-                    char val[64];
-                    if (fgets(val, sizeof(val), stdin)) {
-                        val[strcspn(val, "\n")] = '\0';
-                        render_edit_set(val);
-                        render_refresh();
-                    }
-                } else {
-                    render_focus_activate();
+        if (key == 'j' || key == 'J') { render_next(); render_refresh(); }
+        else if (key == 'k' || key == 'K') { render_prev(); render_refresh(); }
+        else if (key == 'z' || key == 'Z') render_cancel();
+        else if (key == '\n') {
+            if (render_focused_type() == W_EDIT) {
+                printf("\033[%d;0H\033[0mNew value: ", ROWS + 1);
+                fflush(stdout);
+                char val[64];
+                if (fgets(val, sizeof(val), stdin)) {
+                    val[strcspn(val, "\n")] = '\0';
+                    render_edit_set(val);
+                    render_refresh();
                 }
+            } else {
+                render_activate();
             }
         }
     }
