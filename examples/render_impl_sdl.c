@@ -449,7 +449,7 @@ void sdl_quit(void) {
     SDL_Quit();
 }
 
-void render_init(void)     { render_impl_sdl_init(240, 320, 1); }
+void render_init(void)     { render_impl_sdl_init(240, 320, 2); }
 void render_wait_key(void) { sdl_wait_key(); }
 void render_quit(void)     { sdl_quit(); }
 
