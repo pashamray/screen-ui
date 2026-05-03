@@ -74,6 +74,7 @@ static void go_system(void);
 static void go_about(void);
 static void go_reset(void);
 static void go_border_demo(void);
+static void go_demo_list(void);
 
 // ── Home ────────────────────────────────────────────────────────────────────
 
@@ -320,28 +321,35 @@ const Layout system_layout = LAYOUT(
       .text     = "About",
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
-      .y = -48,
+      .y = -64,
       .on_click = go_about },
 
     { .type     = W_BTN,
       .text     = "Border Demo",
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
-      .y = -16,
+      .y = -32,
       .on_click = go_border_demo },
+
+    { .type     = W_BTN,
+      .text     = "List Demo",
+      .align    = ALIGN_CENTER,
+      .w = 128, .h = 24,
+      .y = 0,
+      .on_click = go_demo_list },
 
     { .type     = W_BTN,
       .text     = "Reset",
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
-      .y = 16,
+      .y = 32,
       .on_click = go_reset },
 
     { .type     = W_BTN,
       .text     = "Back",
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
-      .y = 48,
+      .y = 64,
       .on_click = go_settings },
 );
 
@@ -454,6 +462,33 @@ const Layout border_demo_layout = LAYOUT(
       .on_click = go_system },
 );
 
+// ── Demo list ────────────────────────────────────────────────────────────────
+
+const ListLayout demo_list = LIST_LAYOUT(
+    { .type = LI_LABEL, .text = "DISPLAY" },
+    { .type = LI_VALUE, .text = "Brightness",
+      .value = &brightness, .min = 10, .max = 100, .step = 10 },
+    { .type = LI_VALUE, .text = "Theme",
+      .value = &theme_idx, .options = theme_names, .options_count = 2,
+      .on_change = apply_theme },
+
+    { .type = LI_SEPARATOR },
+
+    { .type = LI_LABEL, .text = "NETWORK" },
+    { .type = LI_BTN, .text = "WiFi",      .on_click = go_wifi },
+    { .type = LI_BTN, .text = "Bluetooth", .on_click = go_bluetooth },
+
+    { .type = LI_SEPARATOR },
+
+    { .type = LI_LABEL, .text = "SYSTEM" },
+    { .type = LI_BTN, .text = "About",  .on_click = go_about },
+    { .type = LI_BTN, .text = "Reset",  .on_click = go_reset },
+
+    { .type = LI_SEPARATOR },
+
+    { .type = LI_BTN, .text = "Back", .on_click = go_system },
+);
+
 // ── tick ─────────────────────────────────────────────────────────────────────
 
 void layouts_tick(void) {
@@ -508,3 +543,4 @@ static void go_system(void)    { render_screen(&system_layout); }
 static void go_about(void)       { render_screen(&about_layout); }
 static void go_reset(void)       { render_screen(&reset_layout); }
 static void go_border_demo(void) { render_screen(&border_demo_layout); }
+static void go_demo_list(void)   { render_list(&demo_list); }

@@ -14,6 +14,11 @@ static int  value_backup = 0;
 
 static const Theme *T = NULL;
 
+static const ListLayout *current_list = NULL;
+static int               scroll_top   = 0;
+
+#define DEFAULT_ROW_H 20
+
 void render_set(const Render *r)      { R = r; }
 void render_set_theme(const Theme *t) { T = t; }
 
@@ -21,6 +26,10 @@ void render_set_theme(const Theme *t) { T = t; }
 
 static int is_selectable(const Widget *w) {
     return w->on_click != NULL || w->type == W_VALUE || w->type == W_EDIT;
+}
+
+static int list_is_selectable(const ListItem *item) {
+    return item->type == LI_BTN || item->type == LI_VALUE;
 }
 
 static void resolve(const Widget *w, int16_t *ox, int16_t *oy) {
@@ -72,9 +81,36 @@ static void draw_layout(const Layout *layout) {
     if (R->flush) R->flush();
 }
 
+static void draw_list(const ListLayout *list) {
+    if (R->begin_frame) R->begin_frame(R, T);
+
+    uint8_t row_h   = list->row_h ? list->row_h : DEFAULT_ROW_H;
+    int     visible = (int)(R->screen_h / row_h);
+    int     end     = scroll_top + visible;
+    if (end > (int)list->count) end = (int)list->count;
+
+    for (int i = scroll_top; i < end; i++) {
+        const ListItem *item    = &list->items[i];
+        int16_t         y       = (int16_t)((i - scroll_top) * row_h);
+        int             focused = (i == focus_item_idx);
+        int             editing = focused && (edit_mode == 1);
+
+        if (item->type == LI_SEPARATOR) {
+            if (R->draw_list_separator)
+                R->draw_list_separator(R, 0, y, R->screen_w, row_h, T);
+        } else {
+            if (R->draw_list_item)
+                R->draw_list_item(R, 0, y, R->screen_w, row_h,
+                                  item, T, focused, editing);
+        }
+    }
+    if (R->flush) R->flush();
+}
+
 // ── API ───────────────────────────────────────────────────────────────────────
 
 void render_screen(const Layout *layout) {
+    current_list = NULL;
     edit_mode = 0;
     current_layout = layout;
     focus_item_idx = -1;
@@ -85,10 +121,46 @@ void render_screen(const Layout *layout) {
 }
 
 void render_refresh(void) {
-    if (current_layout) draw_layout(current_layout);
+    if (current_list)        draw_list(current_list);
+    else if (current_layout) draw_layout(current_layout);
+}
+
+void render_list(const ListLayout *list) {
+    if (!list) return;
+    current_layout = NULL;
+    current_list   = list;
+    edit_mode      = 0;
+    scroll_top     = 0;
+    focus_item_idx = -1;
+    for (int i = 0; i < (int)list->count; i++) {
+        if (list_is_selectable(&list->items[i])) { focus_item_idx = i; break; }
+    }
+    draw_list(list);
+}
+
+static void list_scroll_adjust(uint8_t row_h) {
+    int visible = (int)(R->screen_h / (row_h ? row_h : DEFAULT_ROW_H));
+    if (focus_item_idx < scroll_top)
+        scroll_top = focus_item_idx;
+    if (focus_item_idx >= scroll_top + visible)
+        scroll_top = focus_item_idx - visible + 1;
 }
 
 void render_focus_next(void) {
+    if (current_list) {
+        if (edit_mode == 1) return;
+        if (focus_item_idx < 0) return;
+        int n = (int)current_list->count;
+        for (int i = 1; i <= n; i++) {
+            int idx = (focus_item_idx + i) % n;
+            if (list_is_selectable(&current_list->items[idx])) {
+                focus_item_idx = idx;
+                list_scroll_adjust(current_list->row_h);
+                return;
+            }
+        }
+        return;
+    }
     if (!current_layout) return;
     if (edit_mode == 1) return;    // in value-edit, rotation changes the value, not focus
     if (edit_mode == 2) {          // in string-edit — move cursor right
@@ -106,6 +178,20 @@ void render_focus_next(void) {
 }
 
 void render_focus_prev(void) {
+    if (current_list) {
+        if (edit_mode == 1) return;
+        if (focus_item_idx < 0) return;
+        int n = (int)current_list->count;
+        for (int i = 1; i <= n; i++) {
+            int idx = (focus_item_idx - i + n) % n;
+            if (list_is_selectable(&current_list->items[idx])) {
+                focus_item_idx = idx;
+                list_scroll_adjust(current_list->row_h);
+                return;
+            }
+        }
+        return;
+    }
     if (!current_layout) return;
     if (edit_mode == 1) return;
     if (edit_mode == 2) {
@@ -121,6 +207,22 @@ void render_focus_prev(void) {
 }
 
 void render_focus_inc(void) {
+    if (current_list) {
+        if (focus_item_idx < 0) return;
+        const ListItem *item = &current_list->items[focus_item_idx];
+        if (edit_mode == 1 && item->type == LI_VALUE && item->value) {
+            if (item->options) {
+                *item->value = (*item->value + 1) % item->options_count;
+            } else {
+                int s = item->step ? item->step : 1;
+                int v = *item->value + s;
+                *item->value = (v > item->max) ? item->max : v;
+            }
+            if (item->on_change) item->on_change(*item->value);
+            render_refresh();
+        }
+        return;
+    }
     if (!current_layout || focus_item_idx < 0) return;
     const Widget *w = &current_layout->items[focus_item_idx];
 
@@ -147,6 +249,22 @@ void render_focus_inc(void) {
 }
 
 void render_focus_dec(void) {
+    if (current_list) {
+        if (focus_item_idx < 0) return;
+        const ListItem *item = &current_list->items[focus_item_idx];
+        if (edit_mode == 1 && item->type == LI_VALUE && item->value) {
+            if (item->options) {
+                *item->value = (*item->value - 1 + item->options_count) % item->options_count;
+            } else {
+                int s = item->step ? item->step : 1;
+                int v = *item->value - s;
+                *item->value = (v < item->min) ? item->min : v;
+            }
+            if (item->on_change) item->on_change(*item->value);
+            render_refresh();
+        }
+        return;
+    }
     if (!current_layout || focus_item_idx < 0) return;
     const Widget *w = &current_layout->items[focus_item_idx];
 
@@ -172,6 +290,25 @@ void render_focus_dec(void) {
 }
 
 void render_focus_activate(void) {
+    if (current_list) {
+        if (focus_item_idx < 0) return;
+        const ListItem *item = &current_list->items[focus_item_idx];
+        if (edit_mode == 1) {
+            edit_mode = 0;
+            render_refresh();
+            return;
+        }
+        if (item->type == LI_VALUE && item->value) {
+            value_backup = *item->value;
+            edit_mode    = 1;
+            render_refresh();
+            return;
+        }
+        if (item->type == LI_BTN && item->on_click) {
+            item->on_click();
+        }
+        return;
+    }
     if (!current_layout || focus_item_idx < 0) return;
     const Widget *w = &current_layout->items[focus_item_idx];
 
@@ -201,6 +338,17 @@ int render_in_value_edit(void) { return edit_mode == 1; }
 int render_in_edit_mode(void)  { return edit_mode == 2; }
 
 void render_cancel(void) {
+    if (current_list) {
+        if (focus_item_idx < 0) return;
+        const ListItem *item = &current_list->items[focus_item_idx];
+        if (edit_mode == 1 && item->value) {
+            *item->value = value_backup;
+            if (item->on_change) item->on_change(*item->value);
+            edit_mode = 0;
+            render_refresh();
+        }
+        return;
+    }
     if (!current_layout || focus_item_idx < 0) return;
     const Widget *w = &current_layout->items[focus_item_idx];
     if (edit_mode == 1 && w->value) {

@@ -257,6 +257,76 @@ static void menu_draw_value(const Render *r, int16_t x, int16_t y,
     }
 }
 
+static void sdl_draw_list_item(const Render *r,
+                                int16_t x, int16_t y, uint16_t row_w, uint16_t row_h,
+                                const ListItem *item, const Theme *t,
+                                int focused, int editing)
+{
+    (void)r;
+    uint16_t fg     = item->colors ? item->colors->fg : t->text_fg;
+    uint16_t bg     = item->colors ? item->colors->bg : t->screen_bg;
+    uint16_t row_bg = focused ? t->widget_bg : bg;
+    int16_t  cw     = (int16_t)font_8x8.w;
+    int16_t  ch     = (int16_t)font_8x8.h;
+    int16_t  ty     = (int16_t)(y + ((int16_t)row_h - ch) / 2);
+    int16_t  pad    = 8;
+
+    my_fill_rect(x, y, (int16_t)row_w, (int16_t)row_h, row_bg);
+
+    if (item->type == LI_LABEL) {
+        DrawStyle s = { .fg = t->hint_fg, .bg = row_bg };
+        my_draw_text((int16_t)(x + pad), ty, item->text, &s);
+        return;
+    }
+
+    uint16_t brd = (item->type == LI_VALUE && editing) ? t->border_editing :
+                   focused                              ? t->border_focused :
+                                                         t->border_subtle;
+    my_draw_border(x, y, (int16_t)row_w, (int16_t)row_h, brd, 1);
+    DrawStyle s = { .fg = fg, .bg = row_bg };
+
+    if (item->type == LI_BTN) {
+        my_draw_text((int16_t)(x + pad), ty, item->text, &s);
+        my_draw_text((int16_t)(x + (int16_t)row_w - 2 * cw), ty, ">", &s);
+        return;
+    }
+
+    /* LI_VALUE */
+    my_draw_text((int16_t)(x + pad), ty, item->text, &s);
+
+    char val_str[32];
+    if (item->options && item->value) {
+        int idx = *item->value;
+        if (idx < 0) idx = 0;
+        if (idx >= (int)item->options_count) idx = (int)item->options_count - 1;
+        snprintf(val_str, sizeof(val_str), "%s", item->options[idx]);
+    } else if (item->value) {
+        snprintf(val_str, sizeof(val_str), "%d", *item->value);
+    } else {
+        snprintf(val_str, sizeof(val_str), "--");
+    }
+
+    int16_t vlen = (int16_t)strlen(val_str);
+    int16_t vx   = (int16_t)(x + (int16_t)row_w - (vlen + 2) * cw);
+    if (vx < x + pad) vx = (int16_t)(x + pad);
+    my_draw_text(vx, ty, val_str, &s);
+
+    if (editing) {
+        DrawStyle sa = { .fg = t->border_editing, .bg = row_bg };
+        my_draw_text((int16_t)(vx - cw), ty, "<", &sa);
+        my_draw_text((int16_t)(x + (int16_t)row_w - 2 * cw), ty, ">", &sa);
+    }
+}
+
+static void sdl_draw_list_separator(const Render *r,
+                                     int16_t x, int16_t y, uint16_t row_w, uint16_t row_h,
+                                     const Theme *t)
+{
+    (void)r;
+    int16_t mid = (int16_t)(y + (int16_t)row_h / 2);
+    my_fill_rect(x, mid, (int16_t)row_w, 1, t->border_subtle);
+}
+
 // ── lifecycle ────────────────────────────────────────────────────────────────
 void render_impl_sdl_init(int screen_w, int screen_h, int sc) {
     scale = sc;
@@ -280,6 +350,8 @@ void render_impl_sdl_init(int screen_w, int screen_h, int sc) {
         .draw_value       = menu_draw_value,
         .draw_progress    = menu_draw_progress,
         .draw_edit        = menu_draw_edit,
+        .draw_list_item      = sdl_draw_list_item,
+        .draw_list_separator = sdl_draw_list_separator,
     };
     render_set(&r);
     render_set_theme(&theme);
@@ -352,7 +424,7 @@ void sdl_quit(void) {
     SDL_Quit();
 }
 
-void render_init(void)     { render_impl_sdl_init(240, 320, 2); }
+void render_init(void)     { render_impl_sdl_init(240, 320, 3); }
 void render_wait_key(void) { sdl_wait_key(); }
 void render_quit(void)     { sdl_quit(); }
 

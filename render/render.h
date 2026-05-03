@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include "widget.h"
+#include "widget_list.h"
 #include "theme.h"
 
 typedef struct {
@@ -34,10 +35,20 @@ struct Render {
                           const Widget *w, const Theme *t);
     void (*draw_edit)    (const Render *r, int16_t x, int16_t y,
                           const Widget *w, const Theme *t, int focused);
+    // ── list callbacks ───────────────────────────────────────────────────────
+    void (*draw_list_item)     (const Render *r,
+                                int16_t x, int16_t y, uint16_t row_w, uint16_t row_h,
+                                const ListItem *item, const Theme *t,
+                                int focused, int editing);
+    void (*draw_list_separator)(const Render *r,
+                                int16_t x, int16_t y, uint16_t row_w, uint16_t row_h,
+                                const Theme *t);
 };
 
 void  render_set(const Render *r);
+// ── screen-level entry points (mutually exclusive; share focus/edit state) ───
 void  render_screen(const Layout *layout);
+void  render_list(const ListLayout *list);
 void  render_refresh(void);
 
 // widget focus navigation
