@@ -209,10 +209,12 @@ static void menu_draw_btn(const Render *r, int16_t x, int16_t y,
                           const Widget *w, const Theme *t, int focused)
 {
     (void)r;
-    uint16_t fg = w->colors ? w->colors->fg : t->text_fg;
-    uint16_t bg = w->colors ? w->colors->bg : t->screen_bg;
+    uint16_t fg  = w->colors ? w->colors->fg : t->text_fg;
+    uint16_t bg  = w->colors ? w->colors->bg : t->screen_bg;
+    uint16_t brd = focused ? t->border_focused : t->border_subtle;
 
     my_fill_rect(x, y, w->w, w->h, bg);
+    my_draw_border(x, y, w->w, w->h, brd, 1);
 
     int tlen = (int)strlen(w->text);
     int16_t tx = (int16_t)(x + (w->w - tlen * font_8x8.w) / 2);
@@ -220,11 +222,6 @@ static void menu_draw_btn(const Render *r, int16_t x, int16_t y,
 
     DrawStyle s = { .fg = fg, .bg = bg };
     my_draw_text(tx, ty, w->text, &s);
-
-    if (focused) {
-        DrawStyle sa = { .fg = t->border_focused, .bg = bg };
-        my_draw_text((int16_t)(x + 4), ty, ">", &sa);
-    }
 }
 
 static void menu_draw_value(const Render *r, int16_t x, int16_t y,

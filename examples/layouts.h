@@ -12,3 +12,4 @@ extern const Layout bluetooth_layout;
 extern const Layout system_layout;
 extern const Layout about_layout;
 extern const Layout reset_layout;
+extern const Layout border_demo_layout;

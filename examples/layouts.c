@@ -44,6 +44,7 @@ static int wifi_on    = 1;
 static int bt_on      = 0;
 static int battery    = 75;
 static int signal_lvl = 60;
+static int demo_val   = 40;
 
 // dynamic home screen sensor values
 static int  temp_val  = 23;
@@ -72,6 +73,7 @@ static void go_bluetooth(void);
 static void go_system(void);
 static void go_about(void);
 static void go_reset(void);
+static void go_border_demo(void);
 
 // ── Home ────────────────────────────────────────────────────────────────────
 
@@ -84,7 +86,7 @@ const Layout home_layout = LAYOUT(
     { .type  = W_LABEL,
       .text  = wifi_buf,
       .align = ALIGN_TOP_RIGHT,
-      .x     = -4, .y = 4 },
+      .x     = 0, .y = 4 },
 
     { .type  = W_LABEL,
       .text  = temp_buf,
@@ -318,21 +320,28 @@ const Layout system_layout = LAYOUT(
       .text     = "About",
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
-      .y = -32,
+      .y = -48,
       .on_click = go_about },
+
+    { .type     = W_BTN,
+      .text     = "Border Demo",
+      .align    = ALIGN_CENTER,
+      .w = 128, .h = 24,
+      .y = -16,
+      .on_click = go_border_demo },
 
     { .type     = W_BTN,
       .text     = "Reset",
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
-      .y = 0,
+      .y = 16,
       .on_click = go_reset },
 
     { .type     = W_BTN,
       .text     = "Back",
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
-      .y = 32,
+      .y = 48,
       .on_click = go_settings },
 );
 
@@ -400,6 +409,51 @@ const Layout reset_layout = LAYOUT(
       .on_click = go_system },
 );
 
+// ── Border demo (level 3) ────────────────────────────────────────────────────
+
+const Layout border_demo_layout = LAYOUT(
+    { .type  = W_LABEL,
+      .text  = "BORDER DEMO",
+      .align = ALIGN_TOP_MID,
+      .y     = 4 },
+
+    { .type     = W_BTN,
+      .text     = "Button A",
+      .align    = ALIGN_CENTER,
+      .w = 160, .h = 24,
+      .y        = -60,
+      .on_click = go_border_demo },
+
+    { .type     = W_BTN,
+      .text     = "Button B",
+      .align    = ALIGN_CENTER,
+      .w = 160, .h = 24,
+      .y        = -30,
+      .on_click = go_border_demo },
+
+    { .type  = W_VALUE,
+      .text  = "Value",
+      .align = ALIGN_CENTER,
+      .w = 160, .h = 24,
+      .y     = 0,
+      .value = &demo_val,
+      .min   = 0, .max = 100, .step = 10 },
+
+    { .type  = W_PROGRESS,
+      .align = ALIGN_CENTER,
+      .w = 160, .h = 12,
+      .y     = 36,
+      .value = &demo_val,
+      .min   = 0, .max = 100 },
+
+    { .type     = W_BTN,
+      .text     = "Back",
+      .align    = ALIGN_BOTTOM_MID,
+      .w = 96, .h = 24,
+      .y        = -16,
+      .on_click = go_system },
+);
+
 // ── tick ─────────────────────────────────────────────────────────────────────
 
 void layouts_tick(void) {
@@ -451,5 +505,6 @@ static void go_network(void)   { render_screen(&network_layout); }
 static void go_wifi(void)      { render_screen(&wifi_layout); }
 static void go_bluetooth(void) { render_screen(&bluetooth_layout); }
 static void go_system(void)    { render_screen(&system_layout); }
-static void go_about(void)     { render_screen(&about_layout); }
-static void go_reset(void)     { render_screen(&reset_layout); }
+static void go_about(void)       { render_screen(&about_layout); }
+static void go_reset(void)       { render_screen(&reset_layout); }
+static void go_border_demo(void) { render_screen(&border_demo_layout); }
