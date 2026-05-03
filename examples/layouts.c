@@ -52,6 +52,7 @@ static int  pres_val  = 1013;
 static char temp_buf[24] = "Temperature: 23 C";
 static char hum_buf[24]  = "Humidity:    55 %";
 static char pres_buf[24] = "Pressure: 1013 hPa";
+static char wifi_buf[16] = "WiFi: On";
 
 static const char *const theme_names[]   = { "Dark", "Light" };
 static const char *const toggle_names[]  = { "Disabled", "Enabled" };
@@ -79,6 +80,11 @@ const Layout home_layout = LAYOUT(
       .text  = "HOME SCREEN",
       .align = ALIGN_TOP_MID,
       .y     = 4 },
+
+    { .type  = W_LABEL,
+      .text  = wifi_buf,
+      .align = ALIGN_TOP_RIGHT,
+      .x     = -4, .y = 4 },
 
     { .type  = W_LABEL,
       .text  = temp_buf,
@@ -432,6 +438,8 @@ void layouts_tick(void) {
         if (signal_lvl >= 95) sig_dir = -1;
         if (signal_lvl <= 20) sig_dir =  1;
     }
+
+    snprintf(wifi_buf, sizeof(wifi_buf), "WiFi: %s", wifi_on ? "On" : "Off");
 }
 
 // ── callbacks ────────────────────────────────────────────────────────────────
