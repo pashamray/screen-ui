@@ -20,7 +20,10 @@ BIT_REV = bytes([int(f'{i:08b}'[::-1], 2) for i in range(256)])
 
 
 def parse_hex(text):
-    return [int(x, 16) for x in re.findall(r'0x[0-9A-Fa-f]{2}', text)]
+    # Strip // comments before scanning — bitmap lines end with "// 0x20  32  ' '"
+    # which would otherwise inject spurious bytes into the array.
+    clean = '\n'.join(line.split('//')[0] for line in text.splitlines())
+    return [int(x, 16) for x in re.findall(r'0x[0-9A-Fa-f]{2}', clean)]
 
 
 def main():
