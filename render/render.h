@@ -62,6 +62,11 @@ void  render_edit_delete(void);
 WidgetType render_focused_type(void);
 void       render_edit_set(const char *str);
 
-void  render_screen_load(void *root);
-void *render_screen_create(void);
-void  render_screen_destroy(void *root);
+// ── backend contract (must be implemented by each renderer) ──────────────────
+extern void  render_init(void);       // init hardware / window, call render_set() + render_set_theme()
+extern void  render_wait_key(void);   // platform event loop — blocks until exit
+extern void  render_quit(void);       // release resources
+
+extern void  render_screen_load(void *root);
+extern void *render_screen_create(void);
+extern void  render_screen_destroy(void *root);
