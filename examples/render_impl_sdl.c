@@ -411,7 +411,7 @@ void sdl_wait_key(void) {
                 case SDLK_UP:     render_focus_prev(); render_refresh(); break;
                 case SDLK_RETURN:
                 case SDLK_SPACE:  render_focus_activate();               break;
-                case SDLK_ESCAPE: return;
+                case SDLK_ESCAPE: render_cancel(); break;
                 default: break;
             }
         }

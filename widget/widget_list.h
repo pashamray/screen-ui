@@ -24,9 +24,11 @@ typedef struct {
     const ListItem *items;
     uint8_t         count;
     uint8_t         row_h;  // row height in pixels; 0 = DEFAULT_ROW_H (20)
+    int (*on_key)(RenderKey key);  // NULL = pass through; non-zero = consumed
 } ListLayout;
 
-#define LIST_LAYOUT(...) { \
-    .items = (const ListItem[]){ __VA_ARGS__ }, \
-    .count = (uint8_t)(sizeof((const ListItem[]){ __VA_ARGS__ }) / sizeof(ListItem)) \
+#define LIST_LAYOUT(handler, ...) { \
+    .items  = (const ListItem[]){ __VA_ARGS__ }, \
+    .count  = (uint8_t)(sizeof((const ListItem[]){ __VA_ARGS__ }) / sizeof(ListItem)), \
+    .on_key = (handler) \
 }

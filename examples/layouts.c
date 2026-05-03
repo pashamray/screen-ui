@@ -46,6 +46,19 @@ static int battery    = 75;
 static int signal_lvl = 60;
 static int demo_val   = 40;
 
+static int volume      = 70;
+static int eq_idx      = 0;
+static int sleep_idx   = 1;
+static int time_fmt    = 0;
+static int lang_idx    = 0;
+static int unit_idx    = 0;
+
+static const char *const eq_names[]    = { "Flat", "Bass", "Treble", "Voice" };
+static const char *const sleep_names[] = { "1 min", "5 min", "10 min", "Never" };
+static const char *const fmt_names[]   = { "24h", "12h" };
+static const char *const lang_names[]  = { "English", "Русский", "Deutsch", "French" };
+static const char *const unit_names[]  = { "Metric", "Imperial" };
+
 // dynamic home screen sensor values
 static int  temp_val  = 23;
 static int  hum_val   = 55;
@@ -76,9 +89,20 @@ static void go_reset(void);
 static void go_border_demo(void);
 static void go_demo_list(void);
 
+// ── key handlers (cancel = navigate back) ───────────────────────────────────
+
+static int on_key_back_to_home(RenderKey key)
+    { if (key == RENDER_KEY_CANCEL) { go_home();     return 1; } return 0; }
+static int on_key_back_to_settings(RenderKey key)
+    { if (key == RENDER_KEY_CANCEL) { go_settings(); return 1; } return 0; }
+static int on_key_back_to_network(RenderKey key)
+    { if (key == RENDER_KEY_CANCEL) { go_network();  return 1; } return 0; }
+static int on_key_back_to_system(RenderKey key)
+    { if (key == RENDER_KEY_CANCEL) { go_system();   return 1; } return 0; }
+
 // ── Home ────────────────────────────────────────────────────────────────────
 
-const Layout home_layout = LAYOUT(
+const Layout home_layout = LAYOUT(NULL,
     { .type  = W_LABEL,
       .text  = "HOME SCREEN",
       .align = ALIGN_TOP_MID,
@@ -140,7 +164,7 @@ const Layout home_layout = LAYOUT(
 
 // ── Settings (level 1) ──────────────────────────────────────────────────────
 
-const Layout settings_layout = LAYOUT(
+const Layout settings_layout = LAYOUT(on_key_back_to_home,
     { .type  = W_LABEL,
       .text  = "SETTINGS",
       .align = ALIGN_TOP_MID,
@@ -178,7 +202,7 @@ const Layout settings_layout = LAYOUT(
 // ── Display (level 2) — inline W_VALUE ──────────────────────────────────────
 // Pattern: edit value in-place (←→ without navigation)
 
-const Layout display_layout = LAYOUT(
+const Layout display_layout = LAYOUT(on_key_back_to_settings,
     { .type  = W_LABEL,
       .text  = "DISPLAY",
       .align = ALIGN_TOP_MID,
@@ -215,7 +239,7 @@ const Layout display_layout = LAYOUT(
 // ── Network (level 2) — navigate to sub-screens ─────────────────────────────
 // Pattern: dedicated edit screen per section
 
-const Layout network_layout = LAYOUT(
+const Layout network_layout = LAYOUT(on_key_back_to_settings,
     { .type  = W_LABEL,
       .text  = "NETWORK",
       .align = ALIGN_TOP_MID,
@@ -245,7 +269,7 @@ const Layout network_layout = LAYOUT(
 
 // ── WiFi (level 3) — W_VALUE + W_EDIT ───────────────────────────────────────
 
-const Layout wifi_layout = LAYOUT(
+const Layout wifi_layout = LAYOUT(on_key_back_to_network,
     { .type  = W_LABEL,
       .text  = "WIFI",
       .align = ALIGN_TOP_MID,
@@ -278,7 +302,7 @@ const Layout wifi_layout = LAYOUT(
 
 // ── Bluetooth (level 3) — W_VALUE + W_EDIT ──────────────────────────────────
 
-const Layout bluetooth_layout = LAYOUT(
+const Layout bluetooth_layout = LAYOUT(on_key_back_to_network,
     { .type  = W_LABEL,
       .text  = "BLUETOOTH",
       .align = ALIGN_TOP_MID,
@@ -311,7 +335,7 @@ const Layout bluetooth_layout = LAYOUT(
 
 // ── System (level 2) ────────────────────────────────────────────────────────
 
-const Layout system_layout = LAYOUT(
+const Layout system_layout = LAYOUT(on_key_back_to_settings,
     { .type  = W_LABEL,
       .text  = "SYSTEM",
       .align = ALIGN_TOP_MID,
@@ -355,7 +379,7 @@ const Layout system_layout = LAYOUT(
 
 // ── About (level 3) ─────────────────────────────────────────────────────────
 
-const Layout about_layout = LAYOUT(
+const Layout about_layout = LAYOUT(on_key_back_to_system,
     { .type  = W_LABEL,
       .text  = "ABOUT",
       .align = ALIGN_TOP_MID,
@@ -389,7 +413,7 @@ const Layout about_layout = LAYOUT(
 static const WidgetColors danger_label = { .fg = 0xF800 };                // red text
 static const WidgetColors danger_btn   = { .fg = 0xFFFF, .bg = 0xC000 }; // white on dark red
 
-const Layout reset_layout = LAYOUT(
+const Layout reset_layout = LAYOUT(on_key_back_to_system,
     { .type   = W_LABEL,
       .text   = "RESET DEVICE?",
       .colors = &danger_label,
@@ -419,7 +443,7 @@ const Layout reset_layout = LAYOUT(
 
 // ── Border demo (level 3) ────────────────────────────────────────────────────
 
-const Layout border_demo_layout = LAYOUT(
+const Layout border_demo_layout = LAYOUT(on_key_back_to_system,
     { .type  = W_LABEL,
       .text  = "BORDER DEMO",
       .align = ALIGN_TOP_MID,
@@ -464,7 +488,7 @@ const Layout border_demo_layout = LAYOUT(
 
 // ── Demo list ────────────────────────────────────────────────────────────────
 
-const ListLayout demo_list = LIST_LAYOUT(
+const ListLayout demo_list = LIST_LAYOUT(on_key_back_to_system,
     { .type = LI_LABEL, .text = "DISPLAY" },
     { .type = LI_VALUE, .text = "Brightness",
       .value = &brightness, .min = 10, .max = 100, .step = 10 },
@@ -474,9 +498,35 @@ const ListLayout demo_list = LIST_LAYOUT(
 
     { .type = LI_SEPARATOR },
 
+    { .type = LI_LABEL, .text = "AUDIO" },
+    { .type = LI_VALUE, .text = "Volume",
+      .value = &volume, .min = 0, .max = 100, .step = 5 },
+    { .type = LI_VALUE, .text = "Equalizer",
+      .value = &eq_idx, .options = eq_names, .options_count = 4 },
+    { .type = LI_BTN,   .text = "Test tone" },
+
+    { .type = LI_SEPARATOR },
+
     { .type = LI_LABEL, .text = "NETWORK" },
     { .type = LI_BTN, .text = "WiFi",      .on_click = go_wifi },
     { .type = LI_BTN, .text = "Bluetooth", .on_click = go_bluetooth },
+
+    { .type = LI_SEPARATOR },
+
+    { .type = LI_LABEL, .text = "POWER" },
+    { .type = LI_VALUE, .text = "Sleep after",
+      .value = &sleep_idx, .options = sleep_names, .options_count = 4 },
+    { .type = LI_BTN,   .text = "Sleep now" },
+
+    { .type = LI_SEPARATOR },
+
+    { .type = LI_LABEL, .text = "LOCALE" },
+    { .type = LI_VALUE, .text = "Language",
+      .value = &lang_idx, .options = lang_names, .options_count = 4 },
+    { .type = LI_VALUE, .text = "Units",
+      .value = &unit_idx, .options = unit_names, .options_count = 2 },
+    { .type = LI_VALUE, .text = "Time format",
+      .value = &time_fmt, .options = fmt_names, .options_count = 2 },
 
     { .type = LI_SEPARATOR },
 

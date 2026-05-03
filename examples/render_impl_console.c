@@ -302,7 +302,7 @@ void render_wait_key(void) {
         if (render_in_value_edit())
             printf("\033[%d;0H\033[0m[h/l=change  Enter=confirm  z=cancel  q=quit] ", ROWS + 1);
         else
-            printf("\033[%d;0H\033[0m[j/k=nav  Enter=edit/select  q=quit]          ", ROWS + 1);
+            printf("\033[%d;0H\033[0m[j/k=nav  Enter=edit/select  z=back  q=quit]  ", ROWS + 1);
         fflush(stdout);
 
         if (!fgets(buf, sizeof(buf), stdin)) return;
@@ -320,6 +320,7 @@ void render_wait_key(void) {
             // ── normal navigation mode ─────────────────────────────────────
             if (key == 'j' || key == 'J') { render_focus_next(); render_refresh(); }
             else if (key == 'k' || key == 'K') { render_focus_prev(); render_refresh(); }
+            else if (key == 'z' || key == 'Z') render_cancel();
             else if (key == '\n') {
                 if (render_focused_type() == W_EDIT) {
                     printf("\033[%d;0H\033[0mNew value: ", ROWS + 1);

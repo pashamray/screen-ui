@@ -65,12 +65,23 @@ typedef struct {
     const WidgetColors *colors; // NULL → theme default
 } Widget;
 
+typedef enum {
+    RENDER_KEY_ACTIVATE,
+    RENDER_KEY_CANCEL,
+    RENDER_KEY_NEXT,
+    RENDER_KEY_PREV,
+    RENDER_KEY_INC,
+    RENDER_KEY_DEC,
+} RenderKey;
+
 typedef struct {
     const Widget *items;
     uint8_t       count;
+    int (*on_key)(RenderKey key);  // NULL = pass through; non-zero = consumed
 } Layout;
 
-#define LAYOUT(...) { \
-    .items = (const Widget[]){ __VA_ARGS__ }, \
-    .count = sizeof((const Widget[]){ __VA_ARGS__ }) / sizeof(Widget) \
+#define LAYOUT(handler, ...) { \
+    .items  = (const Widget[]){ __VA_ARGS__ }, \
+    .count  = sizeof((const Widget[]){ __VA_ARGS__ }) / sizeof(Widget), \
+    .on_key = (handler) \
 }

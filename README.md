@@ -6,7 +6,7 @@ Target platform: STM32G431 + ST7789 (SPI), 240×320. Renderers are plugged in se
 ## Project structure
 
 ```
-widget/      — widget types and Layout definition
+widget/      — widget types, Layout, ListLayout definitions
 render/      — engine: state machine, focus, edit modes, geometry resolution
 theme/       — Theme struct (colors)
 fonts/       — bitmap fonts: font_8x8, font_mono16 (Liberation Mono 10×16)
@@ -57,7 +57,7 @@ cmake --build build --target screen-ui-sdl
 
 ```sh
 ./build/examples/screen-ui-console   # terminal — j/k/Enter/q
-./build/examples/screen-ui-sdl       # 480×640 window — ↑↓/Enter/Esc
+./build/examples/screen-ui-sdl       # 720×960 window — ↑↓/Enter/Esc
 ```
 
 ## Widgets
@@ -79,7 +79,7 @@ static int volume = 70;
 static int mode   = 0;
 static const char *const modes[] = { "Mono", "Stereo", "Surround" };
 
-const Layout audio_layout = LAYOUT(
+const Layout audio_layout = LAYOUT(NULL,
     { .type  = W_LABEL, .text = "AUDIO",
       .align = ALIGN_TOP_MID, .y = 4 },
 
@@ -106,6 +106,76 @@ const Layout audio_layout = LAYOUT(
 | `ALIGN_TOP_MID` | Top edge, horizontally centered |
 | `ALIGN_TOP_LEFT` / `ALIGN_TOP_RIGHT` | Top corners |
 | `ALIGN_BOTTOM_LEFT` / `ALIGN_BOTTOM_MID` / `ALIGN_BOTTOM_RIGHT` | Bottom edge |
+
+## Lists
+
+`ListLayout` is a second render mode alongside `Layout`. Instead of absolute widget positions, items are stacked vertically at a fixed row height with automatic scrolling.
+
+| Type | Description |
+|---|---|
+| `LI_LABEL` | Section header, non-selectable |
+| `LI_SEPARATOR` | Horizontal divider, non-selectable |
+| `LI_BTN` | Action row, calls `on_click` on activation |
+| `LI_VALUE` | Editable int or enum (same semantics as `W_VALUE`) |
+
+```c
+static int volume  = 70;
+static int eq_idx  = 0;
+static const char *const eq_names[] = { "Flat", "Bass", "Treble", "Voice" };
+
+const ListLayout settings_list = LIST_LAYOUT(NULL,
+    { .type = LI_LABEL, .text = "AUDIO" },
+    { .type = LI_VALUE, .text = "Volume",
+      .value = &volume, .min = 0, .max = 100, .step = 5 },
+    { .type = LI_VALUE, .text = "Equalizer",
+      .value = &eq_idx, .options = eq_names, .options_count = 4 },
+    { .type = LI_BTN,   .text = "Test tone", .on_click = play_tone },
+
+    { .type = LI_SEPARATOR },
+
+    { .type = LI_BTN, .text = "Back", .on_click = go_home },
+);
+```
+
+Display with `render_list(&settings_list)`. Navigation and value editing use the same focus/edit API as `Layout` screens — no changes needed in the event loop.
+
+Row height defaults to 20 px; override with `.row_h` on `ListLayout`. Items that exceed the screen height scroll automatically as focus moves.
+
+## Key interception
+
+Both `Layout` and `ListLayout` accept an optional `on_key` callback as the first macro argument. It is called before widget dispatch in normal navigation mode (not during value or string editing) and returns non-zero to consume the event.
+
+```c
+typedef enum {
+    RENDER_KEY_ACTIVATE,
+    RENDER_KEY_CANCEL,
+    RENDER_KEY_NEXT,
+    RENDER_KEY_PREV,
+    RENDER_KEY_INC,
+    RENDER_KEY_DEC,
+} RenderKey;
+```
+
+Typical use — navigate back on Cancel:
+
+```c
+static int on_key_back(RenderKey key) {
+    if (key == RENDER_KEY_CANCEL) { go_home(); return 1; }
+    return 0;
+}
+
+const Layout settings_layout = LAYOUT(on_key_back,
+    // ... widgets ...
+);
+```
+
+Pass `NULL` when no interception is needed:
+
+```c
+const Layout home_layout = LAYOUT(NULL,
+    // ... widgets ...
+);
+```
 
 ## Themes
 
@@ -168,17 +238,28 @@ static void my_draw_progress(const Render *r, int16_t x, int16_t y,
 static void my_draw_edit    (const Render *r, int16_t x, int16_t y,
                               const Widget *w, const Theme *t, int focused) { ... }
 
+// list callbacks (NULL if list mode is not used)
+static void my_draw_list_item(const Render *r,
+                               int16_t x, int16_t y, uint16_t row_w, uint16_t row_h,
+                               const ListItem *item, const Theme *t,
+                               int focused, int editing) { ... }
+static void my_draw_list_separator(const Render *r,
+                                    int16_t x, int16_t y, uint16_t row_w, uint16_t row_h,
+                                    const Theme *t) { ... }
+
 void render_init(void) {
     static const Render r = {
         .begin_frame       = my_begin_frame,
         .flush             = my_flush,
         .draw_edit_overlay = my_draw_edit_overlay,  // NULL on platforms without keyboard
         .screen_w = 240, .screen_h = 320,
-        .draw_label    = my_draw_label,
-        .draw_btn      = my_draw_btn,
-        .draw_value    = my_draw_value,
-        .draw_progress = my_draw_progress,
-        .draw_edit     = my_draw_edit,
+        .draw_label         = my_draw_label,
+        .draw_btn           = my_draw_btn,
+        .draw_value         = my_draw_value,
+        .draw_progress      = my_draw_progress,
+        .draw_edit          = my_draw_edit,
+        .draw_list_item      = my_draw_list_item,
+        .draw_list_separator = my_draw_list_separator,
     };
     render_set(&r);
     render_set_theme(&theme);

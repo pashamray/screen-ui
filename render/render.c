@@ -32,6 +32,12 @@ static int list_is_selectable(const ListItem *item) {
     return item->type == LI_BTN || item->type == LI_VALUE;
 }
 
+static int dispatch_key(RenderKey key) {
+    if (current_list)   return current_list->on_key   ? current_list->on_key(key)   : 0;
+    if (current_layout) return current_layout->on_key ? current_layout->on_key(key) : 0;
+    return 0;
+}
+
 static void resolve(const Widget *w, int16_t *ox, int16_t *oy) {
     int16_t x  = w->x, y  = w->y;
     int16_t sw = R->screen_w, sh = R->screen_h;
@@ -150,6 +156,7 @@ void render_focus_next(void) {
     if (current_list) {
         if (edit_mode == 1) return;
         if (focus_item_idx < 0) return;
+        if (dispatch_key(RENDER_KEY_NEXT)) return;
         int n = (int)current_list->count;
         for (int i = 1; i <= n; i++) {
             int idx = (focus_item_idx + i) % n;
@@ -162,13 +169,14 @@ void render_focus_next(void) {
         return;
     }
     if (!current_layout) return;
-    if (edit_mode == 1) return;    // in value-edit, rotation changes the value, not focus
+    if (edit_mode == 1) return;
     if (edit_mode == 2) {          // in string-edit — move cursor right
         const Widget *w = &current_layout->items[focus_item_idx];
         if (w->buf && edit_cursor < (int)strlen(w->buf))
             { edit_cursor++; render_refresh(); }
         return;
     }
+    if (dispatch_key(RENDER_KEY_NEXT)) return;
     int n = (int)current_layout->count;
     for (int i = 1; i <= n; i++) {
         int idx = (focus_item_idx + i) % n;
@@ -181,6 +189,7 @@ void render_focus_prev(void) {
     if (current_list) {
         if (edit_mode == 1) return;
         if (focus_item_idx < 0) return;
+        if (dispatch_key(RENDER_KEY_PREV)) return;
         int n = (int)current_list->count;
         for (int i = 1; i <= n; i++) {
             int idx = (focus_item_idx - i + n) % n;
@@ -198,6 +207,7 @@ void render_focus_prev(void) {
         if (edit_cursor > 0) { edit_cursor--; render_refresh(); }
         return;
     }
+    if (dispatch_key(RENDER_KEY_PREV)) return;
     int n = (int)current_layout->count;
     for (int i = 1; i <= n; i++) {
         int idx = (focus_item_idx - i + n) % n;
@@ -220,6 +230,8 @@ void render_focus_inc(void) {
             }
             if (item->on_change) item->on_change(*item->value);
             render_refresh();
+        } else if (edit_mode == 0) {
+            dispatch_key(RENDER_KEY_INC);
         }
         return;
     }
@@ -244,8 +256,9 @@ void render_focus_inc(void) {
         }
         if (w->on_change) w->on_change(*w->value);
         render_refresh();
+        return;
     }
-    // in normal mode: no-op — must enter edit via activate first
+    dispatch_key(RENDER_KEY_INC);
 }
 
 void render_focus_dec(void) {
@@ -262,6 +275,8 @@ void render_focus_dec(void) {
             }
             if (item->on_change) item->on_change(*item->value);
             render_refresh();
+        } else if (edit_mode == 0) {
+            dispatch_key(RENDER_KEY_DEC);
         }
         return;
     }
@@ -286,7 +301,9 @@ void render_focus_dec(void) {
         }
         if (w->on_change) w->on_change(*w->value);
         render_refresh();
+        return;
     }
+    dispatch_key(RENDER_KEY_DEC);
 }
 
 void render_focus_activate(void) {
@@ -298,6 +315,7 @@ void render_focus_activate(void) {
             render_refresh();
             return;
         }
+        if (dispatch_key(RENDER_KEY_ACTIVATE)) return;
         if (item->type == LI_VALUE && item->value) {
             value_backup = *item->value;
             edit_mode    = 1;
@@ -313,11 +331,11 @@ void render_focus_activate(void) {
     const Widget *w = &current_layout->items[focus_item_idx];
 
     if (edit_mode == 1 || edit_mode == 2) {
-        // confirm any active edit mode
         edit_mode = 0;
         render_refresh();
         return;
     }
+    if (dispatch_key(RENDER_KEY_ACTIVATE)) return;
     if (w->type == W_VALUE && w->value) {
         value_backup = *w->value;
         edit_mode = 1;
@@ -346,11 +364,17 @@ void render_cancel(void) {
             if (item->on_change) item->on_change(*item->value);
             edit_mode = 0;
             render_refresh();
+        } else if (edit_mode == 0) {
+            dispatch_key(RENDER_KEY_CANCEL);
         }
         return;
     }
     if (!current_layout || focus_item_idx < 0) return;
     const Widget *w = &current_layout->items[focus_item_idx];
+    if (edit_mode == 0) {
+        dispatch_key(RENDER_KEY_CANCEL);
+        return;
+    }
     if (edit_mode == 1 && w->value) {
         *w->value = value_backup;
         if (w->on_change) w->on_change(*w->value);
