@@ -15,8 +15,6 @@ import re, sys, os, subprocess, tempfile
 
 HERE    = os.path.dirname(os.path.abspath(__file__))
 TTFUGUI = os.path.join(HERE, '../../ttf2ugui/ttf2ugui')
-# ttf2ugui stores pixels MSB-first; we need LSB-first
-BIT_REV = bytes([int(f'{i:08b}'[::-1], 2) for i in range(256)])
 
 
 def parse_hex(text):
@@ -66,7 +64,6 @@ def main():
         pos += n_chars
     pos += offset_size                      # skip offsets table
     bitmaps = raw[pos : pos + n_chars * bpc]
-    bitmaps = [BIT_REV[b] for b in bitmaps] # MSB-first → LSB-first
 
     outfile = os.path.join(HERE, sym + '.c')
     with open(outfile, 'w') as out:
