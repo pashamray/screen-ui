@@ -24,18 +24,18 @@ static int is_selectable(const Widget *w) {
 }
 
 static void resolve(const Widget *w, int16_t *ox, int16_t *oy) {
-    int16_t x = w->x, y = w->y;
+    int16_t x  = w->x, y  = w->y;
     int16_t sw = R->screen_w, sh = R->screen_h;
     int16_t ww = w->w,        wh = w->h;
 
-    switch (w->align) {
-        case ALIGN_CENTER:       x += sw/2 - ww/2; y += sh/2 - wh/2; break;
-        case ALIGN_TOP_MID:      x += sw/2 - ww/2;                    break;
-        case ALIGN_TOP_LEFT:                                           break;
-        case ALIGN_TOP_RIGHT:    x += sw - ww;                        break;
-        case ALIGN_BOTTOM_MID:   x += sw/2 - ww/2; y += sh - wh;     break;
-        case ALIGN_BOTTOM_LEFT:                     y += sh - wh;     break;
-        case ALIGN_BOTTOM_RIGHT: x += sw - ww;      y += sh - wh;     break;
+    switch (w->align & ALIGN_H_MASK) {
+        case ALIGN_H_MID:   x += sw/2 - ww/2; break;
+        case ALIGN_H_RIGHT: x += sw - ww;      break;
+        default: break;
+    }
+    switch (w->align & ALIGN_V_MASK) {
+        case ALIGN_V_MID:    y += sh/2 - wh/2; break;
+        case ALIGN_V_BOTTOM: y += sh - wh;      break;
         default: break;
     }
     *ox = x; *oy = y;

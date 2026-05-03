@@ -16,16 +16,31 @@ typedef enum {
     W_IMG,
 } WidgetType;
 
-typedef enum {
-    ALIGN_DEFAULT,
-    ALIGN_CENTER,
-    ALIGN_TOP_LEFT,
-    ALIGN_TOP_MID,
-    ALIGN_TOP_RIGHT,
-    ALIGN_BOTTOM_LEFT,
-    ALIGN_BOTTOM_MID,
-    ALIGN_BOTTOM_RIGHT,
-} WidgetAlign;
+typedef uint8_t WidgetAlign;
+
+// horizontal component (bits 0-1)
+#define ALIGN_H_LEFT    0x00u
+#define ALIGN_H_MID     0x01u
+#define ALIGN_H_RIGHT   0x02u
+#define ALIGN_H_MASK    0x03u
+
+// vertical component (bits 2-3)
+#define ALIGN_V_TOP     0x00u
+#define ALIGN_V_MID     0x04u
+#define ALIGN_V_BOTTOM  0x08u
+#define ALIGN_V_MASK    0x0Cu
+
+// convenience combinations
+#define ALIGN_DEFAULT      0u
+#define ALIGN_TOP_LEFT     (ALIGN_V_TOP    | ALIGN_H_LEFT)
+#define ALIGN_TOP_MID      (ALIGN_V_TOP    | ALIGN_H_MID)
+#define ALIGN_TOP_RIGHT    (ALIGN_V_TOP    | ALIGN_H_RIGHT)
+#define ALIGN_MID_LEFT     (ALIGN_V_MID    | ALIGN_H_LEFT)
+#define ALIGN_CENTER       (ALIGN_V_MID    | ALIGN_H_MID)
+#define ALIGN_MID_RIGHT    (ALIGN_V_MID    | ALIGN_H_RIGHT)
+#define ALIGN_BOTTOM_LEFT  (ALIGN_V_BOTTOM | ALIGN_H_LEFT)
+#define ALIGN_BOTTOM_MID   (ALIGN_V_BOTTOM | ALIGN_H_MID)
+#define ALIGN_BOTTOM_RIGHT (ALIGN_V_BOTTOM | ALIGN_H_RIGHT)
 
 typedef struct {
     WidgetType   type;
