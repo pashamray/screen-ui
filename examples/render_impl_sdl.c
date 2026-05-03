@@ -41,35 +41,52 @@ static void my_fill_rect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t co
     SDL_RenderFillRect(sdl, &rect);
 }
 
+static int char_idx(const Font *f, uint8_t code) {
+    if (code < f->first || code >= (unsigned)(f->first + f->count))
+        code = (f->first <= ' ' && ' ' < f->first + f->count) ? ' ' : f->first;
+    return code - f->first;
+}
+
+static int16_t text_width(const char *text, const Font *f) {
+    int16_t w = 0;
+    for (const char *p = text; *p; p++) {
+        int idx = char_idx(f, (uint8_t)*p);
+        w += f->widths ? f->widths[idx] : f->w;
+    }
+    return w;
+}
+
 static void my_draw_text(int16_t x, int16_t y, const char *text, const DrawStyle *s,
                          const Font *f) {
     uint8_t fr, fg, fb, br, bg_, bb;
     rgb565(s->fg, &fr, &fg, &fb);
     rgb565(s->bg, &br, &bg_, &bb);
-    int len = (int)strlen(text);
 
+    // background fill
     SDL_SetRenderDrawColor(sdl, br, bg_, bb, 255);
-    for (int ci = 0; ci < len; ci++) {
-        SDL_Rect r = { x + ci * f->w, y, f->w, f->h };
-        SDL_RenderFillRect(sdl, &r);
-    }
+    SDL_Rect bg_r = { x, y, text_width(text, f), f->h };
+    SDL_RenderFillRect(sdl, &bg_r);
+
+    // glyphs
     SDL_SetRenderDrawColor(sdl, fr, fg, fb, 255);
-    for (int ci = 0; ci < len; ci++) {
-        uint8_t code = (uint8_t)text[ci];
-        if (code >= 128) code = ' ';
-        const uint8_t *glyph = f->data + (int)code * f->h * f->stride;
+    int16_t cx = x;
+    for (const char *p = text; *p; p++) {
+        int idx = char_idx(f, (uint8_t)*p);
+        const uint8_t *glyph = f->data + idx * f->h * f->stride;
+        int advance = f->widths ? f->widths[idx] : f->w;
         for (int row = 0; row < f->h; row++) {
             for (int bi = 0; bi < f->stride; bi++) {
                 uint8_t bits = glyph[row * f->stride + bi];
                 if (!bits) continue;
                 for (int col = 0; col < 8; col++) {
                     if ((bits >> col) & 1) {
-                        SDL_Rect px = { x + ci * f->w + bi * 8 + col, y + row, 1, 1 };
+                        SDL_Rect px = { cx + bi * 8 + col, y + row, 1, 1 };
                         SDL_RenderFillRect(sdl, &px);
                     }
                 }
             }
         }
+        cx += advance;
     }
 }
 
@@ -120,7 +137,6 @@ static void sdl_draw_edit_overlay(const Render *r, const Widget *w,
     char       *buf    = w->buf;
     int         maxlen = w->buf_len - 1;
     int         slen   = (int)strlen(buf);
-    int         cw     = f->w;
     int         fh     = f->h;
 
     uint16_t wfg = w->colors ? w->colors->fg : t->text_fg;
@@ -129,36 +145,38 @@ static void sdl_draw_edit_overlay(const Render *r, const Widget *w,
     my_fill_rect(0, 0, (int16_t)r->screen_w, (int16_t)r->screen_h, t->screen_bg);
 
     DrawStyle s_title = { .fg = t->text_fg, .bg = t->screen_bg };
-    int16_t tx = (int16_t)(r->screen_w / 2 - (int)strlen(w->text) * cw / 2);
+    int16_t tx = (int16_t)(r->screen_w / 2 - text_width(w->text, f) / 2);
     my_draw_text(tx, 16, w->text, &s_title, f);
 
-    int16_t fw = (int16_t)(maxlen * cw + 8);
+    int16_t fw = (int16_t)(maxlen * f->w + 8);
     int16_t fx = (int16_t)(r->screen_w  / 2 - fw / 2);
     int16_t fy = (int16_t)(r->screen_h  / 2 - fh / 2 - 4);
     my_fill_rect(fx, fy, fw, (int16_t)(fh + 8), wbg);
     my_draw_border(fx, fy, fw, (int16_t)(fh + 8), t->border_focused, 1);
 
-    int16_t cx = (int16_t)(fx + 4);
-    int16_t cy = (int16_t)(fy + 4);
+    int16_t ecx = (int16_t)(fx + 4);
+    int16_t ecy = (int16_t)(fy + 4);
 
     DrawStyle s_norm = { .fg = wfg,          .bg = wbg           };
     DrawStyle s_cur  = { .fg = t->cursor_fg,  .bg = t->cursor_bg  };
 
+    int16_t cursor_x = ecx;
     if (cursor > 0) {
         char part[64];
         memcpy(part, buf, (size_t)cursor);
         part[cursor] = '\0';
-        my_draw_text(cx, cy, part, &s_norm, f);
+        cursor_x = (int16_t)(ecx + text_width(part, f));
+        my_draw_text(ecx, ecy, part, &s_norm, f);
     }
     char cur_ch[2] = { cursor < slen ? buf[cursor] : ' ', '\0' };
-    my_draw_text((int16_t)(cx + cursor * cw), cy, cur_ch, &s_cur, f);
+    int16_t after_x = (int16_t)(cursor_x + text_width(cur_ch, f));
+    my_draw_text(cursor_x, ecy, cur_ch, &s_cur, f);
     if (cursor < slen)
-        my_draw_text((int16_t)(cx + (cursor + 1) * cw), cy,
-                     buf + cursor + 1, &s_norm, f);
+        my_draw_text(after_x, ecy, buf + cursor + 1, &s_norm, f);
 
     DrawStyle s_hint = { .fg = t->hint_fg, .bg = t->screen_bg };
     const char *hint = "Enter=confirm  Esc=cancel";
-    int16_t hx = (int16_t)(r->screen_w / 2 - (int)strlen(hint) * cw / 2);
+    int16_t hx = (int16_t)(r->screen_w / 2 - text_width(hint, f) / 2);
     my_draw_text(hx, (int16_t)(r->screen_h - 20), hint, &s_hint, f);
 }
 
@@ -170,8 +188,7 @@ static void menu_draw_label(const Render *r, int16_t x, int16_t y,
     (void)r;
     const Font *f = font_for_widget(&w->font);
     uint16_t fg = w->colors ? w->colors->fg : t->text_fg;
-    int tlen = (int)strlen(w->text);
-    int16_t tx = (w->w > 0) ? x : (int16_t)(x - tlen * f->w / 2);
+    int16_t tx = (w->w > 0) ? x : (int16_t)(x - text_width(w->text, f) / 2);
     DrawStyle s = { .fg = fg, .bg = t->screen_bg };
     my_draw_text(tx, y, w->text, &s, f);
 }
@@ -217,8 +234,7 @@ static void menu_draw_edit(const Render *r, int16_t x, int16_t y,
     char disp[48];
     const char *val = (w->buf && w->buf[0]) ? w->buf : "...";
     snprintf(disp, sizeof(disp), "%s: %s", w->text, val);
-    int tlen = (int)strlen(disp);
-    int16_t tx = (int16_t)(x + (w->w - tlen * f->w) / 2);
+    int16_t tx = (int16_t)(x + (w->w - text_width(disp, f)) / 2);
     int16_t ty = (int16_t)(y + (w->h - f->h) / 2);
     DrawStyle s = { .fg = fg, .bg = bg };
     my_draw_text(tx, ty, disp, &s, f);
@@ -236,8 +252,7 @@ static void menu_draw_btn(const Render *r, int16_t x, int16_t y,
     my_fill_rect(x, y, w->w, w->h, bg);
     my_draw_border(x, y, w->w, w->h, brd, 1);
 
-    int tlen = (int)strlen(w->text);
-    int16_t tx = (int16_t)(x + (w->w - tlen * f->w) / 2);
+    int16_t tx = (int16_t)(x + (w->w - text_width(w->text, f)) / 2);
     int16_t ty = (int16_t)(y + (w->h - f->h) / 2);
 
     DrawStyle s = { .fg = fg, .bg = bg };
@@ -265,16 +280,16 @@ static void menu_draw_value(const Render *r, int16_t x, int16_t y,
     else
         snprintf(disp, sizeof(disp), "%s: --", w->text);
 
-    int tlen = (int)strlen(disp);
-    int16_t tx = (int16_t)(x + (w->w - tlen * f->w) / 2);
+    int16_t tx = (int16_t)(x + (w->w - text_width(disp, f)) / 2);
     int16_t ty = (int16_t)(y + (w->h - f->h) / 2);
     DrawStyle s = { .fg = fg, .bg = bg };
     my_draw_text(tx, ty, disp, &s, f);
 
     if (editing) {
+        int16_t aw = text_width("<", f);
         DrawStyle sa = { .fg = t->border_editing, .bg = bg };
-        my_draw_text((int16_t)(x + f->w),            ty, "<", &sa, f);
-        my_draw_text((int16_t)(x + w->w - 2 * f->w), ty, ">", &sa, f);
+        my_draw_text((int16_t)(x + aw / 2),                        ty, "<", &sa, f);
+        my_draw_text((int16_t)(x + w->w - aw - aw / 2), ty, ">", &sa, f);
     }
 }
 

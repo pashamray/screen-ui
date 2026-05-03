@@ -83,5 +83,5 @@ static const uint8_t font_8x8_data[128][8] = {
     ['z'] = {0x00,0x00,0x7E,0x30,0x18,0x0C,0x7E,0x00},
 };
 
-const Font font_8x8 = { .w = 8, .h = 8, .stride = 1,
+const Font font_8x8 = { .w = 8, .h = 8, .stride = 1, .first = 0, .count = 128,
                          .data = (const uint8_t *)font_8x8_data };
