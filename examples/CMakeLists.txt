@@ -1,16 +1,13 @@
 find_package(SDL2 REQUIRED)
 
 set(FONT_SOURCES
-    ../fonts/font_8x8.c
-    ../fonts/font_mono16.c
-    ../fonts/font_noto10.c
-    ../fonts/font_noto12.c
-    ../fonts/font_noto16.c
-    ../fonts/font_noto20.c
-    ../fonts/font_roboto10.c
-    ../fonts/font_roboto12.c
-    ../fonts/font_roboto16.c
-    ../fonts/font_roboto20.c
+    ../fonts/font_terminus12.c
+    ../fonts/font_terminus14.c
+    ../fonts/font_terminus16.c
+    ../fonts/font_terminus18.c
+    ../fonts/font_terminus20.c
+    ../fonts/font_terminus22.c
+    ../fonts/font_terminus24.c
 )
 
 add_executable(screen-ui-console

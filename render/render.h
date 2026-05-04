@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include "widget.h"
+#include "fonts.h"
 #include "widget_list.h"
 #include "theme.h"
 
@@ -49,6 +50,8 @@ void  render_set(const Render *r);
 // ── screen-level entry points (mutually exclusive; share focus/edit state) ───
 void  render_screen(const Layout *layout);
 void  render_list(const ListLayout *list);
+void  render_back(void);            // pop history and restore previous screen
+int   render_can_back(void);        // non-zero if there is history to pop
 void  render_refresh(void);
 
 // input events — dispatch on_key first (normal mode), then act on focus
@@ -75,6 +78,7 @@ void       render_edit_set(const char *str);
 extern void  render_init(void);       // init hardware / window, call render_set() + render_set_theme()
 extern void  render_wait_key(void);   // platform event loop — blocks until exit
 extern void  render_quit(void);       // release resources
+extern void  render_set_font(const Font *f); // switch active font and redraw
 
 extern void  render_screen_load(void *root);
 extern void *render_screen_create(void);

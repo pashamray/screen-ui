@@ -11,15 +11,10 @@ typedef struct Font {
     const uint8_t *widths;  // advance widths [count]; NULL = fixed width (.w)
 } Font;
 
-extern const Font font_8x8;
-extern const Font font_mono16;
-
-extern const Font font_noto10;
-extern const Font font_noto12;
-extern const Font font_noto16;
-extern const Font font_noto20;
-
-extern const Font font_roboto10;
-extern const Font font_roboto12;
-extern const Font font_roboto16;
-extern const Font font_roboto20;
+extern const Font font_terminus12;
+extern const Font font_terminus14;
+extern const Font font_terminus16;
+extern const Font font_terminus18;
+extern const Font font_terminus20;
+extern const Font font_terminus22;
+extern const Font font_terminus24;

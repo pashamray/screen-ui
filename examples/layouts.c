@@ -1,6 +1,21 @@
 #include "layouts.h"
 #include "render.h"
+#include "fonts.h"
 #include <stdio.h>
+
+// ── fonts ─────────────────────────────────────────────────────────────────────
+
+static int font_idx = 4;
+
+static const Font *const font_list[] = {
+    &font_terminus12, &font_terminus14, &font_terminus16,
+    &font_terminus18, &font_terminus20, &font_terminus22, &font_terminus24,
+};
+static const char *const font_names[] = {
+    "12", "14", "16", "18", "20", "22", "24",
+};
+
+static void apply_font(int idx) { render_set_font(font_list[idx]); }
 
 // ── themes ───────────────────────────────────────────────────────────────────
 
@@ -89,18 +104,10 @@ static void go_about(void);
 static void go_reset(void);
 static void go_border_demo(void);
 static void go_demo_list(void);
-static void go_fonts_demo(void);
+static void go_scan_demo(void);
 
 // ── key handlers (cancel = navigate back) ───────────────────────────────────
 
-static int on_key_back_to_home(RenderKey key)
-    { if (key == RENDER_KEY_CANCEL) { go_home();     return 1; } return 0; }
-static int on_key_back_to_settings(RenderKey key)
-    { if (key == RENDER_KEY_CANCEL) { go_settings(); return 1; } return 0; }
-static int on_key_back_to_network(RenderKey key)
-    { if (key == RENDER_KEY_CANCEL) { go_network();  return 1; } return 0; }
-static int on_key_back_to_system(RenderKey key)
-    { if (key == RENDER_KEY_CANCEL) { go_system();   return 1; } return 0; }
 
 // ── Home ────────────────────────────────────────────────────────────────────
 
@@ -186,7 +193,7 @@ const Layout home_layout = LAYOUT(home_on_key,
 
 // ── Settings (level 1) ──────────────────────────────────────────────────────
 
-const Layout settings_layout = LAYOUT(on_key_back_to_home,
+const Layout settings_layout = LAYOUT(NULL,
     { .type  = W_LABEL,
       .text  = "SETTINGS",
       .align = ALIGN_TOP_MID,
@@ -218,13 +225,13 @@ const Layout settings_layout = LAYOUT(on_key_back_to_home,
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
       .y = 45,
-      .on_click = go_home },
+      .on_click = render_back },
 );
 
 // ── Display (level 2) — inline W_VALUE ──────────────────────────────────────
 // Pattern: edit value in-place (←→ without navigation)
 
-const Layout display_layout = LAYOUT(on_key_back_to_settings,
+const Layout display_layout = LAYOUT(NULL,
     { .type  = W_LABEL,
       .text  = "DISPLAY",
       .align = ALIGN_TOP_MID,
@@ -234,7 +241,7 @@ const Layout display_layout = LAYOUT(on_key_back_to_settings,
       .text          = "Brightness",
       .align         = ALIGN_CENTER,
       .w = 192, .h  = 24,
-      .y             = -20,
+      .y             = -30,
       .value         = &brightness,
       .min           = 10,
       .max           = 100,
@@ -244,24 +251,34 @@ const Layout display_layout = LAYOUT(on_key_back_to_settings,
       .text           = "Theme",
       .align          = ALIGN_CENTER,
       .w = 192, .h   = 24,
-      .y              = 10,
+      .y              = 0,
       .value          = &theme_idx,
       .options        = theme_names,
       .options_count  = 2,
       .on_change      = apply_theme },
+
+    { .type           = W_VALUE,
+      .text           = "Font",
+      .align          = ALIGN_CENTER,
+      .w = 192, .h   = 24,
+      .y              = 30,
+      .value          = &font_idx,
+      .options        = font_names,
+      .options_count  = 7,
+      .on_change      = apply_font },
 
     { .type     = W_BTN,
       .text     = "Back",
       .align    = ALIGN_BOTTOM_MID,
       .w = 96, .h = 24,
       .y = -16,
-      .on_click = go_settings },
+      .on_click = render_back },
 );
 
 // ── Network (level 2) — navigate to sub-screens ─────────────────────────────
 // Pattern: dedicated edit screen per section
 
-const Layout network_layout = LAYOUT(on_key_back_to_settings,
+const Layout network_layout = LAYOUT(NULL,
     { .type  = W_LABEL,
       .text  = "NETWORK",
       .align = ALIGN_TOP_MID,
@@ -286,12 +303,12 @@ const Layout network_layout = LAYOUT(on_key_back_to_settings,
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
       .y = 32,
-      .on_click = go_settings },
+      .on_click = render_back },
 );
 
 // ── WiFi (level 3) — W_VALUE + W_EDIT ───────────────────────────────────────
 
-const Layout wifi_layout = LAYOUT(on_key_back_to_network,
+const Layout wifi_layout = LAYOUT(NULL,
     { .type  = W_LABEL,
       .text  = "WIFI",
       .align = ALIGN_TOP_MID,
@@ -319,12 +336,12 @@ const Layout wifi_layout = LAYOUT(on_key_back_to_network,
       .align    = ALIGN_BOTTOM_MID,
       .w = 96, .h = 24,
       .y = -16,
-      .on_click = go_network },
+      .on_click = render_back },
 );
 
 // ── Bluetooth (level 3) — W_VALUE + W_EDIT ──────────────────────────────────
 
-const Layout bluetooth_layout = LAYOUT(on_key_back_to_network,
+const Layout bluetooth_layout = LAYOUT(NULL,
     { .type  = W_LABEL,
       .text  = "BLUETOOTH",
       .align = ALIGN_TOP_MID,
@@ -352,12 +369,12 @@ const Layout bluetooth_layout = LAYOUT(on_key_back_to_network,
       .align    = ALIGN_BOTTOM_MID,
       .w = 96, .h = 24,
       .y = -16,
-      .on_click = go_network },
+      .on_click = render_back },
 );
 
 // ── System (level 2) ────────────────────────────────────────────────────────
 
-const Layout system_layout = LAYOUT(on_key_back_to_settings,
+const Layout system_layout = LAYOUT(NULL,
     { .type  = W_LABEL,
       .text  = "SYSTEM",
       .align = ALIGN_TOP_MID,
@@ -367,48 +384,41 @@ const Layout system_layout = LAYOUT(on_key_back_to_settings,
       .text     = "About",
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
-      .y = -80,
+      .y = -64,
       .on_click = go_about },
 
     { .type     = W_BTN,
       .text     = "Border Demo",
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
-      .y = -48,
+      .y = -32,
       .on_click = go_border_demo },
 
     { .type     = W_BTN,
       .text     = "List Demo",
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
-      .y = -16,
+      .y = 0,
       .on_click = go_demo_list },
-
-    { .type     = W_BTN,
-      .text     = "Font Demo",
-      .align    = ALIGN_CENTER,
-      .w = 128, .h = 24,
-      .y = 16,
-      .on_click = go_fonts_demo },
 
     { .type     = W_BTN,
       .text     = "Reset",
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
-      .y = 48,
+      .y = 32,
       .on_click = go_reset },
 
     { .type     = W_BTN,
       .text     = "Back",
       .align    = ALIGN_CENTER,
       .w = 128, .h = 24,
-      .y = 80,
-      .on_click = go_settings },
+      .y = 64,
+      .on_click = render_back },
 );
 
 // ── About (level 3) ─────────────────────────────────────────────────────────
 
-const Layout about_layout = LAYOUT(on_key_back_to_system,
+const Layout about_layout = LAYOUT(NULL,
     { .type  = W_LABEL,
       .text  = "ABOUT",
       .align = ALIGN_TOP_MID,
@@ -434,7 +444,7 @@ const Layout about_layout = LAYOUT(on_key_back_to_system,
       .align    = ALIGN_BOTTOM_MID,
       .w = 96, .h = 24,
       .y = -16,
-      .on_click = go_system },
+      .on_click = render_back },
 );
 
 // ── Reset confirmation (level 3) ────────────────────────────────────────────
@@ -442,7 +452,7 @@ const Layout about_layout = LAYOUT(on_key_back_to_system,
 static const WidgetColors danger_label = { .fg = 0xF800 };                // red text
 static const WidgetColors danger_btn   = { .fg = 0xFFFF, .bg = 0xC000 }; // white on dark red
 
-const Layout reset_layout = LAYOUT(on_key_back_to_system,
+const Layout reset_layout = LAYOUT(NULL,
     { .type   = W_LABEL,
       .text   = "RESET DEVICE?",
       .colors = &danger_label,
@@ -472,7 +482,7 @@ const Layout reset_layout = LAYOUT(on_key_back_to_system,
 
 // ── Border demo (level 3) ────────────────────────────────────────────────────
 
-const Layout border_demo_layout = LAYOUT(on_key_back_to_system,
+const Layout border_demo_layout = LAYOUT(NULL,
     { .type  = W_LABEL,
       .text  = "BORDER DEMO",
       .align = ALIGN_TOP_MID,
@@ -512,12 +522,54 @@ const Layout border_demo_layout = LAYOUT(on_key_back_to_system,
       .align    = ALIGN_BOTTOM_MID,
       .w = 96, .h = 24,
       .y        = -16,
-      .on_click = go_system },
+      .on_click = render_back },
 );
+
+// ── Scan demo (dynamic list) ─────────────────────────────────────────────────
+
+#define SCAN_MAX_NETS  6
+#define SCAN_BUF_SIZE  (1 + SCAN_MAX_NETS + 1)
+
+static const char *const scan_ssids[SCAN_MAX_NETS] = {
+    "HomeNetwork_5G", "DIRECT-Samsung",  "Neighbor_2.4G",
+    "iPhone_PS",      "Corp_Guest",      "MikroTik_Office",
+};
+
+static ListItem  scan_buf[SCAN_BUF_SIZE];
+static uint8_t   scan_total  = 0;
+static uint8_t   scan_nets   = 0;
+static uint8_t   scan_active = 0;
+static int       scan_timer  = 0;
+
+static const ListItem *get_scan_items(uint8_t *out) {
+    *out = scan_total;
+    return scan_buf;
+}
+
+static void leave_scan(void) { scan_active = 0; render_back(); }
+
+static int on_key_back_to_demo_list(RenderKey key)
+    { if (key == RENDER_KEY_CANCEL) { leave_scan(); return 1; } return 0; }
+
+static const ListLayout scan_list = {
+    .get_items = get_scan_items,
+    .on_key    = on_key_back_to_demo_list,
+};
+
+static void go_scan_demo(void) {
+    scan_timer  = 0;
+    scan_nets   = 0;
+    scan_active = 1;
+    scan_buf[0] = (ListItem){ .type = LI_LABEL, .text = "WIFI SCAN" };
+    scan_buf[1] = (ListItem){ .type = LI_LABEL, .text = "Scanning..." };
+    scan_buf[2] = (ListItem){ .type = LI_BTN,   .text = "Back", .on_click = leave_scan };
+    scan_total  = 3;
+    render_list(&scan_list);
+}
 
 // ── Demo list ────────────────────────────────────────────────────────────────
 
-const ListLayout demo_list = LIST_LAYOUT(on_key_back_to_system,
+const ListLayout demo_list = LIST_LAYOUT(NULL,
     { .type = LI_LABEL, .text = "DISPLAY" },
     { .type = LI_VALUE, .text = "Brightness",
       .value = &brightness, .min = 10, .max = 100, .step = 10 },
@@ -536,9 +588,11 @@ const ListLayout demo_list = LIST_LAYOUT(on_key_back_to_system,
 
     { .type = LI_SEPARATOR },
 
-    { .type = LI_LABEL, .text = "NETWORK" },
-    { .type = LI_BTN, .text = "WiFi",      .on_click = go_wifi },
-    { .type = LI_BTN, .text = "Bluetooth", .on_click = go_bluetooth },
+    { .type = LI_LABEL,   .text = "NETWORK" },
+    { .type = LI_CHECK,   .text = "Wi-Fi",      .value = &wifi_on },
+    { .type = LI_CHECK,   .text = "Bluetooth",  .value = &bt_on },
+    { .type = LI_SUBMENU, .text = "WiFi setup",  .hint = "WPA2", .on_click = go_wifi },
+    { .type = LI_SUBMENU, .text = "BT setup",   .hint = "Off",  .on_click = go_bluetooth },
 
     { .type = LI_SEPARATOR },
 
@@ -565,50 +619,11 @@ const ListLayout demo_list = LIST_LAYOUT(on_key_back_to_system,
 
     { .type = LI_SEPARATOR },
 
-    { .type = LI_BTN, .text = "Back", .on_click = go_system },
-);
+    { .type = LI_BTN, .text = "Scan Demo", .on_click = go_scan_demo },
 
-// ── Font demo ────────────────────────────────────────────────────────────────
+    { .type = LI_SEPARATOR },
 
-static const WidgetColors hint_color = { .fg = 0x8410 };
-
-const Layout fonts_demo_layout = LAYOUT(on_key_back_to_system,
-    { .type = W_LABEL, .text = "FONT SIZES",
-      .align = ALIGN_TOP_MID, .y = 2 },
-
-    { .type = W_LABEL, .text = "Noto Sans",
-      .colors = &hint_color, .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 14 },
-    { .type = W_LABEL, .text = "10: Abc Def 012 !?",
-      .font = { .w = 9, .h = 10, .name = "noto10" },
-      .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 24 },
-    { .type = W_LABEL, .text = "12: Abc Def 012 !?",
-      .font = { .w = 11, .h = 12, .name = "noto12" },
-      .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 36 },
-    { .type = W_LABEL, .text = "16: Abc Def 012",
-      .font = { .w = 15, .h = 16, .name = "noto16" },
-      .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 50 },
-    { .type = W_LABEL, .text = "20: Abc 012",
-      .font = { .w = 18, .h = 20, .name = "noto20" },
-      .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 68 },
-
-    { .type = W_LABEL, .text = "Roboto",
-      .colors = &hint_color, .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 92 },
-    { .type = W_LABEL, .text = "10: Abc Def 012 !?",
-      .font = { .w = 9, .h = 12, .name = "roboto10" },
-      .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 102 },
-    { .type = W_LABEL, .text = "12: Abc Def 012 !?",
-      .font = { .w = 10, .h = 14, .name = "roboto12" },
-      .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 116 },
-    { .type = W_LABEL, .text = "16: Abc Def 012",
-      .font = { .w = 14, .h = 18, .name = "roboto16" },
-      .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 132 },
-    { .type = W_LABEL, .text = "20: Abc 012",
-      .font = { .w = 16, .h = 22, .name = "roboto20" },
-      .align = ALIGN_TOP_LEFT, .w = 1, .x = 4, .y = 152 },
-
-    { .type = W_BTN, .text = "Back",
-      .align = ALIGN_BOTTOM_MID, .w = 96, .h = 24, .y = -16,
-      .on_click = go_system },
+    { .type = LI_BTN, .text = "Back", .on_click = render_back },
 );
 
 // ── tick ─────────────────────────────────────────────────────────────────────
@@ -651,6 +666,25 @@ void layouts_tick(void) {
     }
 
     snprintf(wifi_buf, sizeof(wifi_buf), "WiFi: %s", wifi_on ? "On" : "Off");
+
+    if (scan_active) {
+        scan_timer++;
+        if (scan_timer % 10 == 0 && scan_nets < SCAN_MAX_NETS) {
+            // Replace Scanning... (second-to-last) with found network
+            scan_buf[scan_total - 2] = (ListItem){
+                .type = LI_BTN, .text = scan_ssids[scan_nets], .on_click = leave_scan,
+            };
+            scan_nets++;
+            if (scan_nets < SCAN_MAX_NETS) {
+                // Shift Back down, insert new Scanning... before it
+                scan_buf[scan_total] = scan_buf[scan_total - 1];
+                scan_buf[scan_total - 1] = (ListItem){ .type = LI_LABEL, .text = "Scanning..." };
+                scan_total++;
+            } else {
+                scan_active = 0;
+            }
+        }
+    }
 }
 
 // ── callbacks ────────────────────────────────────────────────────────────────
@@ -666,4 +700,3 @@ static void go_about(void)       { render_screen(&about_layout); }
 static void go_reset(void)       { render_screen(&reset_layout); }
 static void go_border_demo(void) { render_screen(&border_demo_layout); }
 static void go_demo_list(void)   { render_list(&demo_list); }
-static void go_fonts_demo(void)  { render_screen(&fonts_demo_layout); }

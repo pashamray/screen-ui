@@ -1,4 +1,3 @@
 /.claude
+/docs/superpowers/*
 /build
-# ttf2ugui temporary output (run in a temp dir via gen_font.py)
-*_[0-9]*X[0-9]*.c

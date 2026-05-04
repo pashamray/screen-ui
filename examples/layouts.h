@@ -16,4 +16,3 @@ extern const Layout reset_layout;
 extern const Layout border_demo_layout;
 
 extern const ListLayout demo_list;
-extern const Layout     fonts_demo_layout;

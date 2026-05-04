@@ -8,22 +8,7 @@
 static SDL_Window   *window;
 static SDL_Renderer *sdl;
 static int           scale;
-static const Font   *s_font = &font_8x8;  // renderer default; change in init if needed
-
-static const Font *font_for_widget(const WidgetFont *f) {
-    if (!f->name) return s_font;
-    if (strcmp(f->name, "noto10")   == 0) return &font_noto10;
-    if (strcmp(f->name, "noto12")   == 0) return &font_noto12;
-    if (strcmp(f->name, "noto16")   == 0) return &font_noto16;
-    if (strcmp(f->name, "noto20")   == 0) return &font_noto20;
-    if (strcmp(f->name, "roboto10") == 0) return &font_roboto10;
-    if (strcmp(f->name, "roboto12") == 0) return &font_roboto12;
-    if (strcmp(f->name, "roboto16") == 0) return &font_roboto16;
-    if (strcmp(f->name, "roboto20") == 0) return &font_roboto20;
-    if (strcmp(f->name, "8x8")      == 0) return &font_8x8;
-    if (strcmp(f->name, "mono16")   == 0) return &font_mono16;
-    return s_font;
-}
+static const Font   *s_font = &font_terminus20;
 
 // ── RGB565 → RGB888 ─────────────────────────────────────────────────────────
 static void rgb565(uint16_t c, uint8_t *r, uint8_t *g, uint8_t *b) {
@@ -133,7 +118,7 @@ static void menu_begin_frame(const Render *r, const Theme *t) {
 
 static void sdl_draw_edit_overlay(const Render *r, const Widget *w,
                                    const Theme *t, int cursor) {
-    const Font *f   = font_for_widget(&w->font);
+    const Font *f   = s_font;
     char       *buf    = w->buf;
     int         maxlen = w->buf_len - 1;
     int         slen   = (int)strlen(buf);
@@ -186,7 +171,7 @@ static void menu_draw_label(const Render *r, int16_t x, int16_t y,
                             const Widget *w, const Theme *t)
 {
     (void)r;
-    const Font *f = font_for_widget(&w->font);
+    const Font *f = s_font;
     uint16_t fg = w->colors ? w->colors->fg : t->text_fg;
     int16_t tx = (w->w > 0) ? x : (int16_t)(x - text_width(w->text, f) / 2);
     DrawStyle s = { .fg = fg, .bg = t->screen_bg };
@@ -225,7 +210,7 @@ static void menu_draw_edit(const Render *r, int16_t x, int16_t y,
                            const Widget *w, const Theme *t, int focused)
 {
     (void)r;
-    const Font *f = font_for_widget(&w->font);
+    const Font *f = s_font;
     uint16_t fg = w->colors ? w->colors->fg : t->text_fg;
     uint16_t bg = w->colors ? w->colors->bg : t->widget_bg;
     uint16_t border_col = focused ? t->border_focused : t->border_normal;
@@ -244,7 +229,7 @@ static void menu_draw_btn(const Render *r, int16_t x, int16_t y,
                           const Widget *w, const Theme *t, int focused)
 {
     (void)r;
-    const Font *f = font_for_widget(&w->font);
+    const Font *f = s_font;
     uint16_t fg  = w->colors ? w->colors->fg : t->text_fg;
     uint16_t bg  = w->colors ? w->colors->bg : t->screen_bg;
     uint16_t brd = focused ? t->border_focused : t->border_subtle;
@@ -263,7 +248,7 @@ static void menu_draw_value(const Render *r, int16_t x, int16_t y,
                             const Widget *w, const Theme *t, int focused, int editing)
 {
     (void)r;
-    const Font *f = font_for_widget(&w->font);
+    const Font *f = s_font;
     uint16_t fg = w->colors ? w->colors->fg : t->text_fg;
     uint16_t bg = w->colors ? w->colors->bg : t->widget_bg;
     uint16_t border_col = editing ? t->border_editing :
@@ -325,6 +310,26 @@ static void sdl_draw_list_item(const Render *r,
 
     if (item->type == LI_BTN) {
         my_draw_text(tx, ty, item->text, &s, s_font);
+        return;
+    }
+
+    if (item->type == LI_SUBMENU) {
+        my_draw_text(tx, ty, item->text, &s, s_font);
+        my_draw_text((int16_t)(x + (int16_t)row_w - 2 * cw), ty, ">", &s, s_font);
+        if (item->hint) {
+            DrawStyle sh = { .fg = t->hint_fg, .bg = row_bg };
+            int16_t hlen = (int16_t)strlen(item->hint);
+            int16_t hx   = (int16_t)(x + (int16_t)row_w - (hlen + 3) * cw);
+            if (hx > tx) my_draw_text(hx, ty, item->hint, &sh, s_font);
+        }
+        return;
+    }
+
+    if (item->type == LI_CHECK) {
+        my_draw_text(tx, ty, item->text, &s, s_font);
+        const char *chk = (item->value && *item->value) ? "[x]" : "[ ]";
+        int16_t cx = (int16_t)(x + (int16_t)row_w - 4 * cw);
+        my_draw_text(cx, ty, chk, &s, s_font);
         return;
     }
 
@@ -452,6 +457,8 @@ void sdl_quit(void) {
 void render_init(void)     { render_impl_sdl_init(240, 320, 2); }
 void render_wait_key(void) { sdl_wait_key(); }
 void render_quit(void)     { sdl_quit(); }
+
+void  render_set_font(const Font *f)    { s_font = f; render_refresh(); }
 
 void *render_screen_create(void)        { return (void*)1; }
 void  render_screen_destroy(void *root) { (void)root; }

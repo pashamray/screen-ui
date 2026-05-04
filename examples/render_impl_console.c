@@ -240,6 +240,26 @@ static void console_draw_list_item(const Render *r,
         return;
     }
 
+    if (item->type == LI_SUBMENU) {
+        my_draw_text(tx, ty, item->text, &s);
+        my_draw_text((int16_t)(x + (int16_t)row_w - 2 * cw), ty, ">", &s);
+        if (item->hint) {
+            DrawStyle sh = { .fg = t->hint_fg, .bg = row_bg };
+            int16_t hlen = (int16_t)strlen(item->hint);
+            int16_t hx   = (int16_t)(x + (int16_t)row_w - (hlen + 3) * cw);
+            if (hx > tx) my_draw_text(hx, ty, item->hint, &sh);
+        }
+        return;
+    }
+
+    if (item->type == LI_CHECK) {
+        my_draw_text(tx, ty, item->text, &s);
+        const char *chk = (item->value && *item->value) ? "[x]" : "[ ]";
+        int16_t cx = (int16_t)(x + (int16_t)row_w - 4 * cw);
+        my_draw_text(cx, ty, chk, &s);
+        return;
+    }
+
     /* LI_VALUE */
     my_draw_text(tx, ty, item->text, &s);
 
@@ -328,6 +348,8 @@ void render_wait_key(void) {
     }
 }
 void render_quit(void)     { printf("\033[?25h\033[0m\n"); }
+
+void  render_set_font(const Font *f)    { (void)f; }
 
 void *render_screen_create(void)        { fb_clear(); return (void*)fb; }
 void  render_screen_destroy(void *root) { (void)root; }
