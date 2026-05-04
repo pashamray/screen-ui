@@ -9,9 +9,7 @@ Target platform: STM32G431 + ST7789 (SPI), 240×320. Renderers are plugged in se
 widget/      — widget types, Layout, ListLayout definitions
 render/      — engine: state machine, focus, edit modes, geometry resolution
 theme/       — Theme struct (colors)
-fonts/       — bitmap fonts: font_8x8, font_mono16 (Liberation Mono 10×16)
-screen/      — screen manager (navigation stack)
-tools/       — utilities: gen_font.py (TTF → Font converter)
+fonts/       — bitmap fonts: Terminus TTF 12–24 px + gen_font.py
 examples/
   layouts.c / layouts.h        — application screen definitions
   render_impl_console.c        — ANSI terminal renderer
@@ -57,7 +55,7 @@ cmake --build build --target screen-ui-sdl
 
 ```sh
 ./build/examples/screen-ui-console   # terminal — j/k/Enter/q
-./build/examples/screen-ui-sdl       # 720×960 window — ↑↓/Enter/Esc
+./build/examples/screen-ui-sdl       # 240×320 window — ↑↓/Enter/Esc
 ```
 
 ## Widgets
@@ -271,6 +269,34 @@ static void apply_theme(int idx) {
 }
 ```
 
+## Fonts
+
+Fonts are declared in `fonts/fonts.h`. The project ships with **Terminus TTF** at 7 sizes — a bitmap font with hand-crafted glyphs at each pixel size, designed for crisp rendering without antialiasing.
+
+| Symbol | Size | Cell |
+|---|---|---|
+| `font_terminus12` | 12 px | 6×12 |
+| `font_terminus14` | 14 px | 8×14 |
+| `font_terminus16` | 16 px | 8×16 |
+| `font_terminus18` | 18 px | 10×18 |
+| `font_terminus20` | 20 px | 10×20 |
+| `font_terminus22` | 22 px | 11×22 |
+| `font_terminus24` | 24 px | 12×24 |
+
+The active font can be switched at runtime:
+
+```c
+render_set_font(&font_terminus16);
+```
+
+### Adding a new font
+
+```sh
+# Convert TTF with gen_font.py (requires ttf2ugui in ../../ttf2ugui/)
+python3 fonts/gen_font.py MyFont.ttf 20 font_my
+# Then add extern to fonts/fonts.h and the .c file to CMakeLists.txt
+```
+
 ## Custom renderer
 
 A renderer implements frame-level hooks and per-widget draw callbacks. All visual logic lives in the implementation — the engine only resolves geometry and dispatches.
@@ -327,31 +353,16 @@ void render_init(void) {
     render_set_theme(&theme);
 }
 
-void render_wait_key(void) { /* platform event loop */ }
-void render_quit(void)     { /* release resources */ }
+// Backend contract — must also implement:
+void render_wait_key(void)              { /* platform event loop */ }
+void render_quit(void)                  { /* release resources */ }
+void render_set_font(const Font *f)     { /* update active font, call render_refresh() */ }
+void *render_screen_create(void)        { return NULL; }
+void  render_screen_destroy(void *root) { (void)root; }
+void  render_screen_load(void *root)    { (void)root; }
 ```
 
 Add a new `add_executable` in `examples/CMakeLists.txt` and link against `screen-ui-core`.
-
-## Fonts
-
-Fonts are declared in `fonts/fonts.h` and used directly in renderer implementations:
-
-```c
-#include "fonts.h"
-// font_8x8    — 8×8 px, ASCII
-// font_mono16 — 10×16 px, Liberation Mono
-```
-
-### Adding a new font
-
-```sh
-# 1. Convert TTF with ttf2ugui
-ttf2ugui --dump --font=MyFont.ttf --size=16 --chars=32-126
-# 2. Convert to screen-ui format
-python3 tools/gen_font.py MyFont_NxM.c font_my
-# 3. Copy into fonts/ and add extern to fonts/fonts.h
-```
 
 ## License
 
