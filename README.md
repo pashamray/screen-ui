@@ -113,14 +113,20 @@ const Layout audio_layout = LAYOUT(NULL,
 
 | Type | Description |
 |---|---|
-| `LI_LABEL` | Section header, non-selectable |
-| `LI_SEPARATOR` | Horizontal divider, non-selectable |
-| `LI_BTN` | Action row, calls `on_click` on activation |
+| `LI_LABEL` | Section header — non-selectable |
+| `LI_SEPARATOR` | Horizontal divider — non-selectable |
+| `LI_BTN` | Action row — calls `on_click` on activation |
 | `LI_VALUE` | Editable int or enum (same semantics as `W_VALUE`) |
+| `LI_SUBMENU` | Navigation row — text + optional `hint` label + `>` arrow; calls `on_click` |
+| `LI_CHECK` | Boolean toggle — text + `[x]`/`[ ]`; toggles `*value` immediately on activation |
+
+All items accept an optional `.colors` (`WidgetColors { fg, bg }`) to override theme defaults.
+`LI_SUBMENU` accepts `.hint` — a `const char *` shown on the right before `>` (e.g. current value summary).
 
 ```c
 static int volume  = 70;
 static int eq_idx  = 0;
+static int wifi_on = 1;
 static const char *const eq_names[] = { "Flat", "Bass", "Treble", "Voice" };
 
 const ListLayout settings_list = LIST_LAYOUT(NULL,
@@ -129,17 +135,73 @@ const ListLayout settings_list = LIST_LAYOUT(NULL,
       .value = &volume, .min = 0, .max = 100, .step = 5 },
     { .type = LI_VALUE, .text = "Equalizer",
       .value = &eq_idx, .options = eq_names, .options_count = 4 },
-    { .type = LI_BTN,   .text = "Test tone", .on_click = play_tone },
 
     { .type = LI_SEPARATOR },
 
-    { .type = LI_BTN, .text = "Back", .on_click = go_home },
+    { .type = LI_LABEL,   .text = "NETWORK" },
+    { .type = LI_CHECK,   .text = "Wi-Fi",      .value = &wifi_on },
+    { .type = LI_SUBMENU, .text = "WiFi setup",  .hint = "WPA2", .on_click = go_wifi },
+
+    { .type = LI_SEPARATOR },
+
+    { .type = LI_BTN, .text = "Back", .on_click = render_back },
 );
 ```
 
 Display with `render_list(&settings_list)`. Navigation and value editing use the same focus/edit API as `Layout` screens — no changes needed in the event loop.
 
 Row height defaults to 20 px; override with `.row_h` on `ListLayout`. Items that exceed the screen height scroll automatically as focus moves.
+
+### Dynamic lists
+
+When the item array is built at runtime (e.g. a WiFi scan result), provide a `get_items` callback instead of a static array. The callback is invoked on every draw and navigation operation, so calling `render_refresh()` after mutating the buffer is sufficient to update the display.
+
+```c
+static ListItem  wifi_items[16];
+static uint8_t   wifi_count = 0;
+
+static const ListItem *get_wifi_items(uint8_t *out_count) {
+    *out_count = wifi_count;
+    return wifi_items;
+}
+
+static const ListLayout wifi_list = {
+    .get_items = get_wifi_items,
+};
+
+// After populating wifi_items / updating wifi_count:
+render_refresh();
+```
+
+If the list shrinks while it is displayed and `focus_item_idx` goes out of range, the engine automatically re-focuses the last selectable item.
+
+## Navigation history
+
+`render_back()` pops the navigation history and restores the previous screen — including its focus position and scroll offset. History is pushed automatically on every `render_screen()` and `render_list()` call.
+
+```c
+render_back();      // go to previous screen (no-op if history is empty)
+render_can_back();  // non-zero when there is history to pop
+```
+
+**Cancel = Back by default.** `render_cancel()` calls `render_back()` whenever no value or string edit is active and the screen's `on_key` handler did not consume the event. This means most screens need no explicit back handler — pressing Escape/Cancel navigates back automatically.
+
+Back buttons in lists or layouts can use `render_back` directly as `on_click`:
+
+```c
+{ .type = LI_BTN, .text = "Back", .on_click = render_back }
+```
+
+Screens that need custom Cancel behaviour (e.g. stopping a background task before leaving) still use `on_key`:
+
+```c
+static int on_key_scan(RenderKey key) {
+    if (key == RENDER_KEY_CANCEL) { stop_scan(); render_back(); return 1; }
+    return 0;
+}
+```
+
+The history stack is fixed at 16 entries. On overflow, the oldest entry is discarded.
 
 ## Key interception
 
@@ -156,20 +218,20 @@ typedef enum {
 } RenderKey;
 ```
 
-Typical use — navigate back on Cancel:
+Typical use — run a side effect before leaving on Cancel:
 
 ```c
-static int on_key_back(RenderKey key) {
-    if (key == RENDER_KEY_CANCEL) { go_home(); return 1; }
+static int on_key_scan(RenderKey key) {
+    if (key == RENDER_KEY_CANCEL) { stop_scan(); render_back(); return 1; }
     return 0;
 }
 
-const Layout settings_layout = LAYOUT(on_key_back,
-    // ... widgets ...
+const ListLayout scan_list = LIST_LAYOUT(on_key_scan,
+    // ... items ...
 );
 ```
 
-Pass `NULL` when no interception is needed:
+Pass `NULL` when no interception is needed (Cancel = Back is automatic):
 
 ```c
 const Layout home_layout = LAYOUT(NULL,
