@@ -5,170 +5,242 @@
 #include <SDL2/SDL.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
+/* cppcheck-suppress misra-c2012-5.6 */
+/* cppcheck-suppress misra-c2012-5.7 */
 typedef struct { uint16_t fg; uint16_t bg; } DrawStyle;
 
 static SDL_Window   *window;
 static SDL_Renderer *sdl;
+/* cppcheck-suppress misra-c2012-8.9 */
 static int           scale;
 static const Font   *s_font = &font_terminus20;
 
-// ── RGB565 → RGB888 ─────────────────────────────────────────────────────────
+/* ── RGB565 → RGB888 ──────────────────────────────────────────────────────── */
 static void rgb565(uint16_t c, uint8_t *r, uint8_t *g, uint8_t *b) {
-    *r = (c >> 11) << 3;
-    *g = ((c >> 5) & 0x3F) << 2;
-    *b = (c & 0x1F) << 3;
+    *r = (uint8_t)((c >> 11U) << 3U);
+    *g = (uint8_t)(((c >> 5U) & 0x3FU) << 2U);
+    *b = (uint8_t)((c & 0x1FU) << 3U);
 }
 
-// ── primitives (logical coordinates; SDL_RenderSetLogicalSize handles scaling) ──
+/* ── primitives (logical coordinates; SDL_RenderSetLogicalSize handles scaling) ─── */
+/* cppcheck-suppress misra-c2012-5.9 */
 static void my_fill_rect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
-    uint8_t r, g, b;
-    rgb565(color, &r, &g, &b);
-    SDL_SetRenderDrawColor(sdl, r, g, b, 255);
-    SDL_Rect rect = { x, y, w, h };
-    SDL_RenderFillRect(sdl, &rect);
+    uint8_t cr;
+    uint8_t cg;
+    uint8_t cb;
+    rgb565(color, &cr, &cg, &cb);
+    /* cppcheck-suppress misra-c2012-17.3 */
+    SDL_SetRenderDrawColor(sdl, cr, cg, cb, 255U);
+    {
+        SDL_Rect rect = { x, y, w, h };
+        /* cppcheck-suppress misra-c2012-17.3 */
+        (void)SDL_RenderFillRect(sdl, &rect);
+    }
 }
 
 static int char_idx(const Font *f, uint8_t code) {
-    if (code < f->first || code >= (unsigned)(f->first + f->count))
-        code = (f->first <= ' ' && ' ' < f->first + f->count) ? ' ' : f->first;
-    return code - f->first;
+    uint8_t result;
+    if ((code < f->first) || (code >= (uint8_t)(f->first + f->count))) {
+        result = ((f->first <= (uint8_t)' ') && ((uint8_t)' ' < (uint8_t)(f->first + f->count))) ? (uint8_t)' ' : f->first;
+    } else {
+        result = code;
+    }
+    return ((int)result - (int)f->first);
 }
 
 static int16_t text_width(const char *text, const Font *f) {
     int16_t w = 0;
-    for (const char *p = text; *p; p++) {
+    for (const char *p = text; *p != '\0'; p++) {
         int idx = char_idx(f, (uint8_t)*p);
-        w += f->widths ? f->widths[idx] : f->w;
+        w = (int16_t)(w + ((f->widths != NULL) ? (int16_t)f->widths[idx] : (int16_t)f->w));
     }
     return w;
 }
 
+/* cppcheck-suppress misra-c2012-5.9 */
 static void my_draw_text(int16_t x, int16_t y, const char *text, const DrawStyle *s,
                          const Font *f) {
-    uint8_t fr, fg, fb, br, bg_, bb;
+    uint8_t fr;
+    uint8_t fg;
+    uint8_t fb;
+    uint8_t br;
+    uint8_t bg_;
+    uint8_t bb;
     rgb565(s->fg, &fr, &fg, &fb);
     rgb565(s->bg, &br, &bg_, &bb);
 
-    // background fill
-    SDL_SetRenderDrawColor(sdl, br, bg_, bb, 255);
-    SDL_Rect bg_r = { x, y, text_width(text, f), f->h };
-    SDL_RenderFillRect(sdl, &bg_r);
+    /* background fill */
+    /* cppcheck-suppress misra-c2012-17.3 */
+    SDL_SetRenderDrawColor(sdl, br, bg_, bb, 255U);
+    {
+        SDL_Rect bg_r = { x, y, text_width(text, f), (int)f->h };
+        /* cppcheck-suppress misra-c2012-17.3 */
+        (void)SDL_RenderFillRect(sdl, &bg_r);
+    }
 
-    // glyphs
-    SDL_SetRenderDrawColor(sdl, fr, fg, fb, 255);
-    int16_t cx = x;
-    for (const char *p = text; *p; p++) {
-        int idx = char_idx(f, (uint8_t)*p);
-        const uint8_t *glyph = f->data + idx * f->h * f->stride;
-        int advance = f->widths ? f->widths[idx] : f->w;
-        for (int row = 0; row < f->h; row++) {
-            for (int bi = 0; bi < f->stride; bi++) {
-                uint8_t bits = glyph[row * f->stride + bi];
-                if (!bits) continue;
-                for (int col = 0; col < 8; col++) {
-                    if ((bits >> col) & 1) {
-                        SDL_Rect px = { cx + bi * 8 + col, y + row, 1, 1 };
-                        SDL_RenderFillRect(sdl, &px);
+    /* glyphs */
+    /* cppcheck-suppress misra-c2012-17.3 */
+    SDL_SetRenderDrawColor(sdl, fr, fg, fb, 255U);
+    {
+        int16_t cx = x;
+        for (const char *p = text; *p != '\0'; p++) {
+            int idx = char_idx(f, (uint8_t)*p);
+            const uint8_t *glyph = &f->data[idx * (int)f->h * (int)f->stride];
+            int advance = (f->widths != NULL) ? (int)f->widths[idx] : (int)f->w;
+            for (int row = 0; row < (int)f->h; row++) {
+                for (int bi = 0; bi < (int)f->stride; bi++) {
+                    uint8_t bits = glyph[(row * (int)f->stride) + bi];
+                    if (bits == 0U) {
+                        continue;
+                    }
+                    for (uint8_t col = 0U; col < 8U; col++) {
+                        if (((bits >> col) & 1U) != 0U) {
+                            SDL_Rect px = { (cx + (int16_t)(bi * 8) + (int16_t)col), (y + (int16_t)row), 1, 1 };
+                            /* cppcheck-suppress misra-c2012-17.3 */
+                            (void)SDL_RenderFillRect(sdl, &px);
+                        }
                     }
                 }
             }
+            cx = (int16_t)(cx + (int16_t)advance);
         }
-        cx += advance;
     }
 }
 
+/* cppcheck-suppress misra-c2012-5.9 */
 static void my_draw_border(int16_t x, int16_t y, int16_t w, int16_t h,
                             uint16_t color, uint8_t t) {
-    uint8_t r, g, b;
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
     rgb565(color, &r, &g, &b);
-    SDL_SetRenderDrawColor(sdl, r, g, b, 255);
-    SDL_Rect rects[4] = {
-        { x,     y,     w, t },
-        { x,     y+h-t, w, t },
-        { x,     y,     t, h },
-        { x+w-t, y,     t, h },
-    };
-    SDL_RenderFillRects(sdl, rects, 4);
+    /* cppcheck-suppress misra-c2012-17.3 */
+    SDL_SetRenderDrawColor(sdl, r, g, b, 255U);
+    {
+        int it = (int)t;
+        int ix = (int)x;
+        int iy = (int)y;
+        int iw = (int)w;
+        int ih = (int)h;
+        SDL_Rect rects[4] = {
+            { ix,             iy,              iw, it },
+            { ix,             (iy + ih) - it,  iw, it },
+            { ix,             iy,              it, ih },
+            { (ix + iw) - it, iy,              it, ih },
+        };
+        /* cppcheck-suppress misra-c2012-17.3 */
+        (void)SDL_RenderFillRects(sdl, rects, 4);
+    }
 }
 
+/* cppcheck-suppress misra-c2012-5.9 */
 static void my_flush(void) {
-    static uint32_t frames = 0;
+    static uint32_t frames = 0U;
     char title[64];
-    snprintf(title, sizeof(title), "screen-ui  [redraws: %u]", ++frames);
+    frames++;
+    /* cppcheck-suppress misra-c2012-21.6 */
+    /* cppcheck-suppress misra-c2012-17.7 */
+    (void)snprintf(title, sizeof(title), "screen-ui  [redraws: %u]", frames);
+    /* cppcheck-suppress misra-c2012-17.3 */
     SDL_SetWindowTitle(window, title);
+    /* cppcheck-suppress misra-c2012-17.3 */
     SDL_RenderPresent(sdl);
 }
 
 
-// ── frame-level hooks ────────────────────────────────────────────────────────
+/* ── frame-level hooks ──────────────────────────────────────────────────── */
 
 static void menu_begin_frame(const Render *r, const Theme *t) {
     (void)r;
-    uint8_t br, bg_, bb;
+    uint8_t br;
+    uint8_t bg_;
+    uint8_t bb;
     rgb565(t->screen_bg, &br, &bg_, &bb);
-    SDL_SetRenderDrawColor(sdl, br, bg_, bb, 255);
-    SDL_RenderClear(sdl);
+    /* cppcheck-suppress misra-c2012-17.3 */
+    SDL_SetRenderDrawColor(sdl, br, bg_, bb, 255U);
+    /* cppcheck-suppress misra-c2012-17.3 */
+    (void)SDL_RenderClear(sdl);
 }
 
 static void sdl_draw_edit_overlay(const Render *r, const Widget *w,
                                    const Theme *t, int cursor) {
-    const Font *f   = s_font;
+    const Font *f      = s_font;
     char       *buf    = w->buf;
-    int         maxlen = w->buf_len - 1;
+    int         maxlen = (int)w->buf_len - 1;
     int         slen   = (int)strlen(buf);
-    int         fh     = f->h;
+    int         fh     = (int)f->h;
 
-    uint16_t wfg = w->colors ? w->colors->fg : t->text_fg;
-    uint16_t wbg = w->colors ? w->colors->bg : t->widget_bg;
+    /* cppcheck-suppress misra-c2012-10.8 */
+    uint16_t wfg = (w->colors != NULL) ? w->colors->fg : t->text_fg;
+    /* cppcheck-suppress misra-c2012-10.8 */
+    uint16_t wbg = (w->colors != NULL) ? w->colors->bg : t->widget_bg;
 
     my_fill_rect(0, 0, (int16_t)r->screen_w, (int16_t)r->screen_h, t->screen_bg);
 
-    DrawStyle s_title = { .fg = t->text_fg, .bg = t->screen_bg };
-    int16_t tx = (int16_t)(r->screen_w / 2 - text_width(w->text, f) / 2);
-    my_draw_text(tx, 16, w->text, &s_title, f);
-
-    int16_t fw = (int16_t)(maxlen * f->w + 8);
-    int16_t fx = (int16_t)(r->screen_w  / 2 - fw / 2);
-    int16_t fy = (int16_t)(r->screen_h  / 2 - fh / 2 - 4);
-    my_fill_rect(fx, fy, fw, (int16_t)(fh + 8), wbg);
-    my_draw_border(fx, fy, fw, (int16_t)(fh + 8), t->border_focused, 1);
-
-    int16_t ecx = (int16_t)(fx + 4);
-    int16_t ecy = (int16_t)(fy + 4);
-
-    DrawStyle s_norm = { .fg = wfg,          .bg = wbg           };
-    DrawStyle s_cur  = { .fg = t->cursor_fg,  .bg = t->cursor_bg  };
-
-    int16_t cursor_x = ecx;
-    if (cursor > 0) {
-        char part[64];
-        memcpy(part, buf, (size_t)cursor);
-        part[cursor] = '\0';
-        cursor_x = (int16_t)(ecx + text_width(part, f));
-        my_draw_text(ecx, ecy, part, &s_norm, f);
+    {
+        DrawStyle s_title = { .fg = t->text_fg, .bg = t->screen_bg };
+        /* cppcheck-suppress misra-c2012-10.8 */
+        int16_t tx = (int16_t)((int16_t)(r->screen_w / 2U) - (text_width(w->text, f) / 2));
+        my_draw_text(tx, 16, w->text, &s_title, f);
     }
-    char cur_ch[2] = { cursor < slen ? buf[cursor] : ' ', '\0' };
-    int16_t after_x = (int16_t)(cursor_x + text_width(cur_ch, f));
-    my_draw_text(cursor_x, ecy, cur_ch, &s_cur, f);
-    if (cursor < slen)
-        my_draw_text(after_x, ecy, buf + cursor + 1, &s_norm, f);
 
-    DrawStyle s_hint = { .fg = t->hint_fg, .bg = t->screen_bg };
-    const char *hint = "Enter=confirm  Esc=cancel";
-    int16_t hx = (int16_t)(r->screen_w / 2 - text_width(hint, f) / 2);
-    my_draw_text(hx, (int16_t)(r->screen_h - 20), hint, &s_hint, f);
+    {
+        int16_t fw = (int16_t)((maxlen * (int)f->w) + 8);
+        /* cppcheck-suppress misra-c2012-10.8 */
+        int16_t fx = (int16_t)((int16_t)(r->screen_w  / 2U) - (fw / 2));
+        /* cppcheck-suppress misra-c2012-10.8 */
+        int16_t fy = (int16_t)((int16_t)(r->screen_h  / 2U) - ((int16_t)fh / 2) - 4);
+        my_fill_rect(fx, fy, fw, (int16_t)(fh + 8), wbg);
+        my_draw_border(fx, fy, fw, (int16_t)(fh + 8), t->border_focused, 1U);
+
+        int16_t ecx = (int16_t)(fx + 4);
+        int16_t ecy = (int16_t)(fy + 4);
+
+        DrawStyle s_norm = { .fg = wfg,          .bg = wbg           };
+        DrawStyle s_cur  = { .fg = t->cursor_fg,  .bg = t->cursor_bg  };
+
+        int16_t cursor_x = ecx;
+        if (cursor > 0) {
+            char part[64];
+            if (cursor < 64) {
+                (void)memcpy(part, buf, (size_t)cursor);
+                part[cursor] = '\0';
+                cursor_x = (int16_t)(ecx + text_width(part, f));
+                my_draw_text(ecx, ecy, part, &s_norm, f);
+            }
+        }
+        {
+            char cur_ch[2];
+            cur_ch[0] = (cursor < slen) ? buf[cursor] : ' ';
+            cur_ch[1] = '\0';
+            int16_t after_x = (int16_t)(cursor_x + text_width(cur_ch, f));
+            my_draw_text(cursor_x, ecy, cur_ch, &s_cur, f);
+            if (cursor < slen) {
+                my_draw_text(after_x, ecy, &buf[cursor + 1], &s_norm, f);
+            }
+        }
+    }
+
+    {
+        DrawStyle s_hint = { .fg = t->hint_fg, .bg = t->screen_bg };
+        const char *hint = "Enter=confirm  Esc=cancel";
+        /* cppcheck-suppress misra-c2012-10.8 */
+        int16_t hx = (int16_t)((int16_t)(r->screen_w / 2U) - (text_width(hint, f) / 2));
+        my_draw_text(hx, (int16_t)((int16_t)r->screen_h - 20), hint, &s_hint, f);
+    }
 }
 
-// ── widget callbacks ─────────────────────────────────────────────────────────
+/* ── widget callbacks ────────────────────────────────────────────────────── */
 
 static void menu_draw_label(const Render *r, int16_t x, int16_t y,
                             const Widget *w, const Theme *t)
 {
     (void)r;
     const Font *f = s_font;
-    uint16_t fg = w->colors ? w->colors->fg : t->text_fg;
-    int16_t tx = (w->w > 0) ? x : (int16_t)(x - text_width(w->text, f) / 2);
+    uint16_t fg = (w->colors != NULL) ? w->colors->fg : t->text_fg;
+    int16_t tx = (w->w > 0) ? x : (int16_t)(x - (text_width(w->text, f) / 2));
     DrawStyle s = { .fg = fg, .bg = t->screen_bg };
     my_draw_text(tx, y, w->text, &s, f);
 }
@@ -177,26 +249,34 @@ static void menu_draw_progress(const Render *r, int16_t x, int16_t y,
                                const Widget *w, const Theme *t)
 {
     (void)r;
-    uint16_t bg   = w->colors ? w->colors->bg : t->widget_bg;
-    uint16_t fill = w->colors ? w->colors->fg : t->border_focused;
+    uint16_t bg   = (w->colors != NULL) ? w->colors->bg : t->widget_bg;
+    uint16_t fill = (w->colors != NULL) ? w->colors->fg : t->border_focused;
 
     my_fill_rect(x, y, w->w, w->h, bg);
-    my_draw_border(x, y, w->w, w->h, t->border_subtle, 1);
+    my_draw_border(x, y, w->w, w->h, t->border_subtle, 1U);
 
-    if (w->value && w->max > w->min) {
+    if ((w->value != NULL) && (w->max > w->min)) {
         int range = w->max - w->min;
-        int val   = *w->value < w->min ? w->min :
-                    *w->value > w->max ? w->max : *w->value;
-        if (w->h > w->w) {
-            int16_t fh = (int16_t)((val - w->min) * (w->h - 2) / range);
-            if (fh > 0)
-                my_fill_rect((int16_t)(x + 1), (int16_t)(y + w->h - 1 - fh),
-                             (int16_t)(w->w - 2), fh, fill);
+        int val;
+        if (*w->value < w->min) {
+            val = w->min;
+        } else if (*w->value > w->max) {
+            val = w->max;
         } else {
-            int16_t fw = (int16_t)((val - w->min) * (w->w - 2) / range);
-            if (fw > 0)
+            val = *w->value;
+        }
+        if (w->h > w->w) {
+            int16_t fh = (int16_t)(((val - w->min) * (w->h - 2)) / range);
+            if (fh > 0) {
+                my_fill_rect((int16_t)(x + 1), (int16_t)((y + w->h) - 1 - fh),
+                             (int16_t)(w->w - 2), fh, fill);
+            }
+        } else {
+            int16_t fw = (int16_t)(((val - w->min) * (w->w - 2)) / range);
+            if (fw > 0) {
                 my_fill_rect((int16_t)(x + 1), (int16_t)(y + 1),
                              fw, (int16_t)(w->h - 2), fill);
+            }
         }
     }
 }
@@ -206,18 +286,22 @@ static void menu_draw_edit(const Render *r, int16_t x, int16_t y,
 {
     (void)r;
     const Font *f = s_font;
-    uint16_t fg = w->colors ? w->colors->fg : t->text_fg;
-    uint16_t bg = w->colors ? w->colors->bg : t->widget_bg;
-    uint16_t border_col = focused ? t->border_focused : t->border_normal;
+    uint16_t fg = (w->colors != NULL) ? w->colors->fg : t->text_fg;
+    uint16_t bg = (w->colors != NULL) ? w->colors->bg : t->widget_bg;
+    uint16_t border_col = (focused != 0) ? t->border_focused : t->border_normal;
     my_fill_rect(x, y, w->w, w->h, bg);
-    my_draw_border(x, y, w->w, w->h, border_col, 1);
-    char disp[48];
-    const char *val = (w->buf && w->buf[0]) ? w->buf : "...";
-    snprintf(disp, sizeof(disp), "%s: %s", w->text, val);
-    int16_t tx = (int16_t)(x + (w->w - text_width(disp, f)) / 2);
-    int16_t ty = (int16_t)(y + (w->h - f->h) / 2);
-    DrawStyle s = { .fg = fg, .bg = bg };
-    my_draw_text(tx, ty, disp, &s, f);
+    my_draw_border(x, y, w->w, w->h, border_col, 1U);
+    {
+        char disp[48];
+        const char *val = ((w->buf != NULL) && (w->buf[0] != '\0')) ? w->buf : "...";
+        /* cppcheck-suppress misra-c2012-21.6 */
+        /* cppcheck-suppress misra-c2012-17.7 */
+        (void)snprintf(disp, sizeof(disp), "%s: %s", w->text, val);
+        int16_t tx = (int16_t)(x + ((w->w - text_width(disp, f)) / 2));
+        int16_t ty = (int16_t)(y + ((w->h - (int16_t)f->h) / 2));
+        DrawStyle s = { .fg = fg, .bg = bg };
+        my_draw_text(tx, ty, disp, &s, f);
+    }
 }
 
 static void menu_draw_btn(const Render *r, int16_t x, int16_t y,
@@ -225,18 +309,20 @@ static void menu_draw_btn(const Render *r, int16_t x, int16_t y,
 {
     (void)r;
     const Font *f = s_font;
-    uint16_t fg  = w->colors ? w->colors->fg : t->text_fg;
-    uint16_t bg  = w->colors ? w->colors->bg : t->screen_bg;
-    uint16_t brd = focused ? t->border_focused : t->border_subtle;
+    uint16_t fg  = (w->colors != NULL) ? w->colors->fg : t->text_fg;
+    uint16_t bg  = (w->colors != NULL) ? w->colors->bg : t->screen_bg;
+    uint16_t brd = (focused != 0) ? t->border_focused : t->border_subtle;
 
     my_fill_rect(x, y, w->w, w->h, bg);
-    my_draw_border(x, y, w->w, w->h, brd, 1);
+    my_draw_border(x, y, w->w, w->h, brd, 1U);
 
-    int16_t tx = (int16_t)(x + (w->w - text_width(w->text, f)) / 2);
-    int16_t ty = (int16_t)(y + (w->h - f->h) / 2);
+    {
+        int16_t tx = (int16_t)(x + ((w->w - text_width(w->text, f)) / 2));
+        int16_t ty = (int16_t)(y + ((w->h - (int16_t)f->h) / 2));
 
-    DrawStyle s = { .fg = fg, .bg = bg };
-    my_draw_text(tx, ty, w->text, &s, f);
+        DrawStyle s = { .fg = fg, .bg = bg };
+        my_draw_text(tx, ty, w->text, &s, f);
+    }
 }
 
 static void menu_draw_value(const Render *r, int16_t x, int16_t y,
@@ -244,32 +330,47 @@ static void menu_draw_value(const Render *r, int16_t x, int16_t y,
 {
     (void)r;
     const Font *f = s_font;
-    uint16_t fg = w->colors ? w->colors->fg : t->text_fg;
-    uint16_t bg = w->colors ? w->colors->bg : t->widget_bg;
-    uint16_t border_col = editing ? t->border_editing :
-                          focused ? t->border_focused : t->border_subtle;
+    uint16_t fg = (w->colors != NULL) ? w->colors->fg : t->text_fg;
+    uint16_t bg = (w->colors != NULL) ? w->colors->bg : t->widget_bg;
+    uint16_t border_col;
+    if (editing != 0) {
+        border_col = t->border_editing;
+    } else if (focused != 0) {
+        border_col = t->border_focused;
+    } else {
+        border_col = t->border_subtle;
+    }
 
     my_fill_rect(x, y, w->w, w->h, bg);
-    my_draw_border(x, y, w->w, w->h, border_col, 1);
+    my_draw_border(x, y, w->w, w->h, border_col, 1U);
 
-    char disp[48];
-    if (w->options && w->value)
-        snprintf(disp, sizeof(disp), "%s: %s", w->text, w->options[*w->value]);
-    else if (w->value)
-        snprintf(disp, sizeof(disp), "%s: %d", w->text, *w->value);
-    else
-        snprintf(disp, sizeof(disp), "%s: --", w->text);
+    {
+        char disp[48];
+        if ((w->options != NULL) && (w->value != NULL)) {
+            /* cppcheck-suppress misra-c2012-21.6 */
+            /* cppcheck-suppress misra-c2012-17.7 */
+            (void)snprintf(disp, sizeof(disp), "%s: %s", w->text, w->options[*w->value]);
+        } else if (w->value != NULL) {
+            /* cppcheck-suppress misra-c2012-21.6 */
+            /* cppcheck-suppress misra-c2012-17.7 */
+            (void)snprintf(disp, sizeof(disp), "%s: %d", w->text, *w->value);
+        } else {
+            /* cppcheck-suppress misra-c2012-21.6 */
+            /* cppcheck-suppress misra-c2012-17.7 */
+            (void)snprintf(disp, sizeof(disp), "%s: --", w->text);
+        }
 
-    int16_t tx = (int16_t)(x + (w->w - text_width(disp, f)) / 2);
-    int16_t ty = (int16_t)(y + (w->h - f->h) / 2);
-    DrawStyle s = { .fg = fg, .bg = bg };
-    my_draw_text(tx, ty, disp, &s, f);
+        int16_t tx = (int16_t)(x + ((w->w - text_width(disp, f)) / 2));
+        int16_t ty = (int16_t)(y + ((w->h - (int16_t)f->h) / 2));
+        DrawStyle s = { .fg = fg, .bg = bg };
+        my_draw_text(tx, ty, disp, &s, f);
 
-    if (editing) {
-        int16_t aw = text_width("<", f);
-        DrawStyle sa = { .fg = t->border_editing, .bg = bg };
-        my_draw_text((int16_t)(x + aw / 2),                        ty, "<", &sa, f);
-        my_draw_text((int16_t)(x + w->w - aw - aw / 2), ty, ">", &sa, f);
+        if (editing != 0) {
+            int16_t aw = text_width("<", f);
+            DrawStyle sa = { .fg = t->border_editing, .bg = bg };
+            my_draw_text((int16_t)(x + (aw / 2)),                              ty, "<", &sa, f);
+            my_draw_text((int16_t)((x + w->w) - aw - (aw / 2)), ty, ">", &sa, f);
+        }
     }
 }
 
@@ -279,12 +380,12 @@ static void sdl_draw_list_item(const Render *r,
                                 int focused, int editing)
 {
     (void)r;
-    uint16_t fg     = item->colors ? item->colors->fg : t->text_fg;
-    uint16_t bg     = item->colors ? item->colors->bg : t->screen_bg;
-    uint16_t row_bg = focused ? t->widget_bg : bg;
+    uint16_t fg     = (item->colors != NULL) ? item->colors->fg : t->text_fg;
+    uint16_t bg     = (item->colors != NULL) ? item->colors->bg : t->screen_bg;
+    uint16_t row_bg = (focused != 0) ? t->widget_bg : bg;
     int16_t  cw     = (int16_t)s_font->w;
     int16_t  ch     = (int16_t)s_font->h;
-    int16_t  ty     = (int16_t)(y + ((int16_t)row_h - ch) / 2);
+    int16_t  ty     = (int16_t)(y + (((int16_t)row_h - ch) / 2));
     int16_t  pad    = 8;
 
     my_fill_rect(x, y, (int16_t)row_w, (int16_t)row_h, row_bg);
@@ -292,66 +393,88 @@ static void sdl_draw_list_item(const Render *r,
     if (item->type == LI_LABEL) {
         DrawStyle s = { .fg = t->hint_fg, .bg = row_bg };
         my_draw_text((int16_t)(x + pad), ty, item->text, &s, s_font);
+        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
 
-    int16_t  tx = (int16_t)(x + pad + (focused ? cw : 0));
+    int16_t  tx = (int16_t)(x + pad + ((focused != 0) ? cw : 0));
     DrawStyle s  = { .fg = fg, .bg = row_bg };
 
-    if (focused) {
+    if (focused != 0) {
         DrawStyle sc = { .fg = t->border_focused, .bg = row_bg };
         my_draw_text((int16_t)(x + pad), ty, ">", &sc, s_font);
     }
 
     if (item->type == LI_BTN) {
         my_draw_text(tx, ty, item->text, &s, s_font);
+        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
 
     if (item->type == LI_SUBMENU) {
         my_draw_text(tx, ty, item->text, &s, s_font);
-        my_draw_text((int16_t)(x + (int16_t)row_w - 2 * cw), ty, ">", &s, s_font);
-        if (item->hint) {
+        my_draw_text((int16_t)(x + (int16_t)row_w - (2 * cw)), ty, ">", &s, s_font);
+        if (item->hint != NULL) {
             DrawStyle sh = { .fg = t->hint_fg, .bg = row_bg };
             int16_t hw = text_width(item->hint, s_font);
-            int16_t hx = (int16_t)(x + (int16_t)row_w - hw - 3 * cw);
-            if (hx > tx) my_draw_text(hx, ty, item->hint, &sh, s_font);
+            int16_t hx = (int16_t)(x + (int16_t)row_w - hw - (3 * cw));
+            if (hx > tx) {
+                my_draw_text(hx, ty, item->hint, &sh, s_font);
+            }
         }
+        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
 
     if (item->type == LI_CHECK) {
         my_draw_text(tx, ty, item->text, &s, s_font);
-        const char *chk = (item->value && *item->value) ? "[x]" : "[ ]";
-        int16_t cx = (int16_t)(x + (int16_t)row_w - 4 * cw);
-        my_draw_text(cx, ty, chk, &s, s_font);
+        {
+            const char *chk = ((item->value != NULL) && (*item->value != 0)) ? "[x]" : "[ ]";
+            int16_t cx = (int16_t)(x + (int16_t)row_w - (4 * cw));
+            my_draw_text(cx, ty, chk, &s, s_font);
+        }
+        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
 
     /* LI_VALUE */
     my_draw_text(tx, ty, item->text, &s, s_font);
 
-    char val_str[32];
-    if (item->options && item->value) {
-        int idx = *item->value;
-        if (idx < 0) idx = 0;
-        if (idx >= (int)item->options_count) idx = (int)item->options_count - 1;
-        snprintf(val_str, sizeof(val_str), "%s", item->options[idx]);
-    } else if (item->value) {
-        snprintf(val_str, sizeof(val_str), "%d", *item->value);
-    } else {
-        snprintf(val_str, sizeof(val_str), "--");
-    }
+    {
+        char val_str[32];
+        if ((item->options != NULL) && (item->value != NULL)) {
+            int idx = *item->value;
+            if (idx < 0) {
+                idx = 0;
+            }
+            if (idx >= (int)item->options_count) {
+                idx = (int)item->options_count - 1;
+            }
+            /* cppcheck-suppress misra-c2012-21.6 */
+            /* cppcheck-suppress misra-c2012-17.7 */
+            (void)snprintf(val_str, sizeof(val_str), "%s", item->options[idx]);
+        } else if (item->value != NULL) {
+            /* cppcheck-suppress misra-c2012-21.6 */
+            /* cppcheck-suppress misra-c2012-17.7 */
+            (void)snprintf(val_str, sizeof(val_str), "%d", *item->value);
+        } else {
+            /* cppcheck-suppress misra-c2012-21.6 */
+            /* cppcheck-suppress misra-c2012-17.7 */
+            (void)snprintf(val_str, sizeof(val_str), "--");
+        }
 
-    int16_t vlen = (int16_t)strlen(val_str);
-    int16_t vx   = (int16_t)(x + (int16_t)row_w - (vlen + 2) * cw);
-    if (vx < tx + cw) vx = (int16_t)(tx + cw);
-    my_draw_text(vx, ty, val_str, &s, s_font);
+        int16_t vlen = (int16_t)strlen(val_str);
+        int16_t vx   = (int16_t)(x + (int16_t)row_w - ((vlen + 2) * cw));
+        if (vx < (tx + cw)) {
+            vx = (int16_t)(tx + cw);
+        }
+        my_draw_text(vx, ty, val_str, &s, s_font);
 
-    if (editing) {
-        DrawStyle sa = { .fg = t->border_editing, .bg = row_bg };
-        my_draw_text((int16_t)(vx - cw), ty, "<", &sa, s_font);
-        my_draw_text((int16_t)(x + (int16_t)row_w - 2 * cw), ty, ">", &sa, s_font);
+        if (editing != 0) {
+            DrawStyle sa = { .fg = t->border_editing, .bg = row_bg };
+            my_draw_text((int16_t)(vx - cw), ty, "<", &sa, s_font);
+            my_draw_text((int16_t)(x + (int16_t)row_w - (2 * cw)), ty, ">", &sa, s_font);
+        }
     }
 }
 
@@ -360,97 +483,144 @@ static void sdl_draw_list_separator(const Render *r,
                                      const Theme *t)
 {
     (void)r;
-    int16_t mid = (int16_t)(y + (int16_t)row_h / 2);
+    int16_t mid = (int16_t)(y + ((int16_t)row_h / 2));
     my_fill_rect(x, mid, (int16_t)row_w, 1, t->border_subtle);
 }
 
-// ── lifecycle ────────────────────────────────────────────────────────────────
+/* ── lifecycle ────────────────────────────────────────────────────────────── */
+/* cppcheck-suppress misra-c2012-8.4 */
+/* cppcheck-suppress misra-c2012-8.7 */
 void render_impl_sdl_init(int screen_w, int screen_h, int sc) {
     scale = sc;
-    SDL_Init(SDL_INIT_VIDEO);
+    /* cppcheck-suppress misra-c2012-17.3 */
+    (void)SDL_Init(SDL_INIT_VIDEO);
+    /* cppcheck-suppress misra-c2012-17.3 */
     window = SDL_CreateWindow("screen-ui",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         screen_w * scale, screen_h * scale, 0);
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
+    /* cppcheck-suppress misra-c2012-17.3 */
+    (void)SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
+    /* cppcheck-suppress misra-c2012-17.3 */
     sdl = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    SDL_RenderSetLogicalSize(sdl, screen_w, screen_h);
+    /* cppcheck-suppress misra-c2012-17.3 */
+    (void)SDL_RenderSetLogicalSize(sdl, screen_w, screen_h);
 
-    static Render r;
-    r = (Render){
-        .begin_frame      = menu_begin_frame,
-        .flush            = my_flush,
-        .draw_edit_overlay = sdl_draw_edit_overlay,
-        .screen_w         = (uint16_t)screen_w,
-        .screen_h         = (uint16_t)screen_h,
-        .draw_label       = menu_draw_label,
-        .draw_btn         = menu_draw_btn,
-        .draw_value       = menu_draw_value,
-        .draw_progress    = menu_draw_progress,
-        .draw_edit        = menu_draw_edit,
-        .draw_list_item      = sdl_draw_list_item,
-        .draw_list_separator = sdl_draw_list_separator,
-    };
-    render_set(&r);
-    render_set_theme(&theme_default);
-}
-
-void sdl_wait_key(void) {
-    SDL_Event e;
-    int was_str_edit = 0;
-
-    while (1) {
-        // ── tick: advance animations and redraw every frame ──────────────
-        if (!SDL_WaitEventTimeout(&e, 16)) {
-            layouts_tick();
-            render_refresh();   // draws if dirty (set by engine events or layouts_tick)
-            continue;
-        }
-        if (e.type == SDL_QUIT) exit(0);
-
-        int str_edit = render_in_edit_mode();
-        if (str_edit && !was_str_edit) SDL_StartTextInput();
-        if (!str_edit && was_str_edit) SDL_StopTextInput();
-        was_str_edit = str_edit;
-
-        // ── input: only change state (engine sets dirty internally) ───────
-        if (str_edit) {
-            if (e.type == SDL_TEXTINPUT) {
-                render_edit_char(e.text.text[0]);
-            } else if (e.type == SDL_KEYDOWN) {
-                switch (e.key.keysym.sym) {
-                    case SDLK_BACKSPACE: render_edit_delete(); break;
-                    case SDLK_LEFT:      render_prev();        break;
-                    case SDLK_RIGHT:     render_next();        break;
-                    case SDLK_RETURN:    render_activate();    break;
-                    case SDLK_ESCAPE:    render_cancel();      break;
-                    default: break;
-                }
-            }
-        } else {
-            if (e.type != SDL_KEYDOWN) continue;
-            switch (e.key.keysym.sym) {
-                case SDLK_DOWN:   render_next();    break;
-                case SDLK_UP:     render_prev();    break;
-                case SDLK_LEFT:   render_dec();     break;
-                case SDLK_RIGHT:  render_inc();     break;
-                case SDLK_RETURN:
-                case SDLK_SPACE:  render_activate(); break;
-                case SDLK_ESCAPE: render_cancel();   break;
-                default: break;
-            }
-        }
-        // dirty flag will be drawn on the next tick
+    {
+        static Render r;
+        r = (Render){
+            .begin_frame      = menu_begin_frame,
+            .flush            = my_flush,
+            .draw_edit_overlay = sdl_draw_edit_overlay,
+            .screen_w         = (uint16_t)screen_w,
+            .screen_h         = (uint16_t)screen_h,
+            .draw_label       = menu_draw_label,
+            .draw_btn         = menu_draw_btn,
+            .draw_value       = menu_draw_value,
+            .draw_progress    = menu_draw_progress,
+            .draw_edit        = menu_draw_edit,
+            .draw_list_item      = sdl_draw_list_item,
+            .draw_list_separator = sdl_draw_list_separator,
+        };
+        render_set(&r);
+        render_set_theme(&theme_default);
     }
 }
 
+/* cppcheck-suppress misra-c2012-8.4 */
+/* cppcheck-suppress misra-c2012-8.7 */
+void sdl_wait_key(void) {
+    SDL_Event e;
+    int was_str_edit = 0;
+    int keep_running = 1;
+
+    /* cppcheck-suppress misra-c2012-15.4 */
+    while (keep_running != 0) {
+        /* ── tick: advance animations and redraw every frame ────────── */
+        /* cppcheck-suppress misra-c2012-17.3 */
+        if (SDL_WaitEventTimeout(&e, 16) == 0) {
+            layouts_tick();
+            render_refresh();   /* draws if dirty (set by engine events or layouts_tick) */
+            continue;
+        }
+        /* cppcheck-suppress misra-c2012-17.3 */
+        if (e.type == (uint32_t)SDL_QUIT) {
+            keep_running = 0;
+            continue;
+        }
+
+        {
+            int str_edit = render_in_edit_mode();
+            if ((str_edit != 0) && (was_str_edit == 0)) {
+                /* cppcheck-suppress misra-c2012-17.3 */
+                SDL_StartTextInput();
+            }
+            if ((str_edit == 0) && (was_str_edit != 0)) {
+                /* cppcheck-suppress misra-c2012-17.3 */
+                SDL_StopTextInput();
+            }
+            was_str_edit = str_edit;
+
+            /* ── input: only change state (engine sets dirty internally) ─── */
+            if (str_edit != 0) {
+                /* cppcheck-suppress misra-c2012-17.3 */
+                if (e.type == (uint32_t)SDL_TEXTINPUT) {
+                    render_edit_char(e.text.text[0]);
+                /* cppcheck-suppress misra-c2012-17.3 */
+                } else if (e.type == (uint32_t)SDL_KEYDOWN) {
+                    switch (e.key.keysym.sym) {
+                        case SDLK_BACKSPACE: render_edit_delete(); break;
+                        case SDLK_LEFT:      render_prev();        break;
+                        case SDLK_RIGHT:     render_next();        break;
+                        case SDLK_RETURN:    render_activate();    break;
+                        case SDLK_ESCAPE:    render_cancel();      break;
+                        default: break;
+                    }
+                } else {
+                    /* no action */
+                }
+            } else {
+                /* cppcheck-suppress misra-c2012-17.3 */
+                if (e.type != (uint32_t)SDL_KEYDOWN) {
+                    continue;
+                }
+                switch (e.key.keysym.sym) {
+                    case SDLK_DOWN:   render_next();    break;
+                    case SDLK_UP:     render_prev();    break;
+                    case SDLK_LEFT:   render_dec();     break;
+                    case SDLK_RIGHT:  render_inc();     break;
+                    case SDLK_RETURN:
+                    case SDLK_SPACE:  render_activate(); break;
+                    case SDLK_ESCAPE: render_cancel();   break;
+                    default: break;
+                    /* cppcheck-suppress misra-c2012-15.7 */
+                }
+            }
+        }
+        /* dirty flag will be drawn on the next tick */
+    }
+}
+
+/* cppcheck-suppress misra-c2012-8.4 */
+/* cppcheck-suppress misra-c2012-8.7 */
 void sdl_quit(void) {
+    /* cppcheck-suppress misra-c2012-17.3 */
     SDL_DestroyRenderer(sdl);
+    /* cppcheck-suppress misra-c2012-17.3 */
     SDL_DestroyWindow(window);
+    /* cppcheck-suppress misra-c2012-17.3 */
     SDL_Quit();
 }
 
+/* cppcheck-suppress misra-c2012-8.6 */
+/* cppcheck-suppress misra-c2012-8.7 */
 void render_init(void)     { render_impl_sdl_init(240, 320, 2); }
+/* cppcheck-suppress misra-c2012-8.6 */
+/* cppcheck-suppress misra-c2012-8.7 */
 void render_wait_key(void) { sdl_wait_key(); }
+/* cppcheck-suppress misra-c2012-8.6 */
+/* cppcheck-suppress misra-c2012-8.7 */
 void render_quit(void)     { sdl_quit(); }
 
+/* cppcheck-suppress misra-c2012-8.6 */
+/* cppcheck-suppress misra-c2012-8.7 */
 void render_set_font(const Font *f) { s_font = f; render_mark_dirty(); }

@@ -4,6 +4,7 @@
 #include "widget_list.h"
 #include "theme.h"
 
+/* cppcheck-suppress misra-c2012-5.6 */
 typedef struct Font Font;
 
 void render_set_theme(const Theme *t);

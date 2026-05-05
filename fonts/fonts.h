@@ -9,6 +9,7 @@ typedef struct Font {
     uint8_t        count;   // number of chars
     const uint8_t *data;    // glyph bitmaps: [count][h*stride], LSB-first per row
     const uint8_t *widths;  // advance widths [count]; NULL = fixed width (.w)
+/* cppcheck-suppress misra-c2012-5.6 */
 } Font;
 
 extern const Font font_terminus12;
