@@ -120,7 +120,6 @@ static int home_on_key(RenderKey key) {
            brightness = brightness > 10 ? brightness - 10 : 10;
         }
         snprintf(brightness_buf, sizeof(brightness_buf), "Bright: %d%%", brightness);
-        render_refresh();
         return 1;
     }
     return 0;
@@ -626,65 +625,96 @@ const ListLayout demo_list = LIST_LAYOUT(NULL,
     { .type = LI_BTN, .text = "Back", .on_click = render_back },
 );
 
+// ── W_LIST embedded demo ─────────────────────────────────────────────────────
+// Pattern: fixed header label + scrollable W_LIST + fixed footer button
+
+static const Layout wlist_demo_layout = LAYOUT(NULL,
+    { .type  = W_LABEL, .text = "SETTINGS (W_LIST)",
+      .align = ALIGN_TOP_MID, .y = 4 },
+
+    { .type = W_LIST, .list = &demo_list,
+      .x = 0, .y = 24, .w = 240, .h = 268 },
+
+    { .type     = W_BTN, .text = "Back",
+      .align    = ALIGN_BOTTOM_MID, .w = 96, .h = 24, .y = -4,
+      .on_click = render_back },
+);
+
 // ── tick ─────────────────────────────────────────────────────────────────────
 
 void layouts_tick(void) {
     static int n = 0;
     n++;
+    int changed = 0;
 
     static int temp_dir = 1;
     static int hum_dir  = 1;
     static int pres_dir = -1;
     static int sig_dir  = 1;
 
-    if (n % 8 == 0) {
-        temp_val += temp_dir;
-        if (temp_val >= 26) temp_dir = -1;
-        if (temp_val <= 19) temp_dir =  1;
-        snprintf(temp_buf, sizeof(temp_buf), "Temperature: %d C", temp_val);
-    }
-    if (n % 12 == 0) {
-        hum_val += hum_dir;
-        if (hum_val >= 65) hum_dir = -1;
-        if (hum_val <= 48) hum_dir =  1;
-        snprintf(hum_buf, sizeof(hum_buf), "Humidity:    %d %%", hum_val);
-    }
-    if (n % 20 == 0) {
-        pres_val += pres_dir;
-        if (pres_val >= 1020) pres_dir = -1;
-        if (pres_val <= 1008) pres_dir =  1;
-        snprintf(pres_buf, sizeof(pres_buf), "Pressure: %d hPa", pres_val);
-    }
-    if (n % 40 == 0) {
-        battery--;
-        if (battery < 0) battery = 100;
-    }
-    if (n % 5 == 0) {
-        signal_lvl += sig_dir * 2;
-        if (signal_lvl >= 95) sig_dir = -1;
-        if (signal_lvl <= 20) sig_dir =  1;
-    }
+    int is_home = (render_current_layout() == &home_layout);
 
-    snprintf(wifi_buf, sizeof(wifi_buf), "WiFi: %s", wifi_on ? "On" : "Off");
+    if (is_home) {
+        if (n % 8 == 0) {
+            temp_val += temp_dir;
+            if (temp_val >= 26) temp_dir = -1;
+            if (temp_val <= 19) temp_dir =  1;
+            snprintf(temp_buf, sizeof(temp_buf), "Temperature: %d C", temp_val);
+            changed = 1;
+        }
+        if (n % 12 == 0) {
+            hum_val += hum_dir;
+            if (hum_val >= 65) hum_dir = -1;
+            if (hum_val <= 48) hum_dir =  1;
+            snprintf(hum_buf, sizeof(hum_buf), "Humidity:    %d %%", hum_val);
+            changed = 1;
+        }
+        if (n % 20 == 0) {
+            pres_val += pres_dir;
+            if (pres_val >= 1020) pres_dir = -1;
+            if (pres_val <= 1008) pres_dir =  1;
+            snprintf(pres_buf, sizeof(pres_buf), "Pressure: %d hPa", pres_val);
+            changed = 1;
+        }
+        if (n % 40 == 0) {
+            battery--;
+            if (battery < 0) battery = 100;
+            changed = 1;
+        }
+        if (n % 5 == 0) {
+            signal_lvl += sig_dir * 2;
+            if (signal_lvl >= 95) sig_dir = -1;
+            if (signal_lvl <= 20) sig_dir =  1;
+            changed = 1;
+        }
+
+        static int prev_wifi_on = -1;
+        if (wifi_on != prev_wifi_on) {
+            snprintf(wifi_buf, sizeof(wifi_buf), "WiFi: %s", wifi_on ? "On" : "Off");
+            prev_wifi_on = wifi_on;
+            changed = 1;
+        }
+    }
 
     if (scan_active) {
         scan_timer++;
         if (scan_timer % 10 == 0 && scan_nets < SCAN_MAX_NETS) {
-            // Replace Scanning... (second-to-last) with found network
             scan_buf[scan_total - 2] = (ListItem){
                 .type = LI_BTN, .text = scan_ssids[scan_nets], .on_click = leave_scan,
             };
             scan_nets++;
             if (scan_nets < SCAN_MAX_NETS) {
-                // Shift Back down, insert new Scanning... before it
                 scan_buf[scan_total] = scan_buf[scan_total - 1];
                 scan_buf[scan_total - 1] = (ListItem){ .type = LI_LABEL, .text = "Scanning..." };
                 scan_total++;
             } else {
                 scan_active = 0;
             }
+            changed = 1;
         }
     }
+
+    if (changed) render_mark_dirty();
 }
 
 // ── callbacks ────────────────────────────────────────────────────────────────
@@ -699,4 +729,4 @@ static void go_system(void)    { render_screen(&system_layout); }
 static void go_about(void)       { render_screen(&about_layout); }
 static void go_reset(void)       { render_screen(&reset_layout); }
 static void go_border_demo(void) { render_screen(&border_demo_layout); }
-static void go_demo_list(void)   { render_list(&demo_list); }
+static void go_demo_list(void)   { render_screen(&wlist_demo_layout); }

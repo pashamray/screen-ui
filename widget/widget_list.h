@@ -23,7 +23,7 @@ typedef struct {
     const WidgetColors *colors;  // NULL → theme default
 } ListItem;
 
-typedef struct {
+typedef struct ListLayout {
     const ListItem *items;    // static items (when get_items == NULL)
     uint8_t         count;    // static count (when get_items == NULL)
     const ListItem *(*get_items)(uint8_t *out_count);  // dynamic: overrides items/count when non-NULL

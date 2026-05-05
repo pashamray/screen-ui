@@ -1,7 +1,10 @@
 #include "render.h"
+#include "theme_default.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+
+typedef struct { uint16_t fg; uint16_t bg; } DrawStyle;
 
 // font_8x8 and font_mono16 are defined in fonts/ (shared with SDL target)
 
@@ -89,18 +92,6 @@ static void my_flush(void) {
     fflush(stdout);
 }
 
-static const Theme theme = {
-    .screen_bg      = 0x0000,
-    .text_fg        = 0xFFFF,
-    .widget_bg      = 0x2104,
-    .border_normal  = 0xFFFF,
-    .border_focused = 0x07FF,
-    .border_editing = 0xFFE0,
-    .border_subtle  = 0x4208,
-    .cursor_fg      = 0x0000,
-    .cursor_bg      = 0x07FF,
-    .hint_fg        = 0x8410,
-};
 
 // ── frame-level hooks ────────────────────────────────────────────────────────
 
@@ -313,7 +304,7 @@ static const Render render_impl_console = {
 void console_render_init(void) {
     fb_clear();
     render_set(&render_impl_console);
-    render_set_theme(&theme);
+    render_set_theme(&theme_default);
 }
 
 void render_init(void)     { console_render_init(); }
@@ -330,7 +321,7 @@ void render_wait_key(void) {
 
         if (key == 'j' || key == 'J') { render_next(); render_refresh(); }
         else if (key == 'k' || key == 'K') { render_prev(); render_refresh(); }
-        else if (key == 'z' || key == 'Z') render_cancel();
+        else if (key == 'z' || key == 'Z') { render_cancel(); render_refresh(); }
         else if (key == '\n') {
             if (render_focused_type() == W_EDIT) {
                 printf("\033[%d;0H\033[0mNew value: ", ROWS + 1);
@@ -343,14 +334,11 @@ void render_wait_key(void) {
                 }
             } else {
                 render_activate();
+                render_refresh();
             }
         }
     }
 }
 void render_quit(void)     { printf("\033[?25h\033[0m\n"); }
 
-void  render_set_font(const Font *f)    { (void)f; }
-
-void *render_screen_create(void)        { fb_clear(); return (void*)fb; }
-void  render_screen_destroy(void *root) { (void)root; }
-void  render_screen_load(void *root)    { (void)root; }
+void render_set_font(const Font *f) { (void)f; }

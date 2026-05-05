@@ -1,6 +1,8 @@
 #pragma once
 #include <stdint.h>
 
+typedef struct ListLayout ListLayout; // forward declaration (defined in widget_list.h)
+
 typedef struct {
     uint16_t fg;
     uint16_t bg;
@@ -18,8 +20,7 @@ typedef enum {
     W_VALUE,    // inline editable: int or enum options
     W_PROGRESS, // read-only bar: value/min/max
     W_EDIT,     // string input
-    W_RECT,
-    W_IMG,
+    W_LIST,     // embedded scrollable list (ListLayout) — combinable with other widgets
 } WidgetType;
 
 typedef uint8_t WidgetAlign;
@@ -67,6 +68,9 @@ typedef struct {
     // W_EDIT
     char    *buf;
     uint8_t  buf_len;
+
+    // W_LIST
+    const ListLayout *list;
 
     const WidgetColors *colors; // NULL → theme default
     WidgetFont          font;   // zero = renderer default

@@ -67,6 +67,7 @@ cmake --build build --target screen-ui-sdl
 | `W_VALUE` | Inline int or enum editor (encoder / ←→) |
 | `W_PROGRESS` | Read-only bar: `value`/`min`/`max`; vertical if `h > w` |
 | `W_EDIT` | String input with cursor and full-screen overlay |
+| `W_LIST` | Embedded scrollable `ListLayout` inside a `Layout` |
 
 All widgets accept `.colors` (`WidgetColors { fg, bg }`) to override theme defaults per widget.
 
@@ -152,7 +153,7 @@ Row height defaults to 20 px; override with `.row_h` on `ListLayout`. Items that
 
 ### Dynamic lists
 
-When the item array is built at runtime (e.g. a WiFi scan result), provide a `get_items` callback instead of a static array. The callback is invoked on every draw and navigation operation, so calling `render_refresh()` after mutating the buffer is sufficient to update the display.
+When the item array is built at runtime (e.g. a WiFi scan result), provide a `get_items` callback instead of a static array. The callback is invoked on every draw and navigation operation.
 
 ```c
 static ListItem  wifi_items[16];
@@ -168,10 +169,66 @@ static const ListLayout wifi_list = {
 };
 
 // After populating wifi_items / updating wifi_count:
-render_refresh();
+render_mark_dirty();
 ```
 
 If the list shrinks while it is displayed and `focus_item_idx` goes out of range, the engine automatically re-focuses the last selectable item.
+
+### W_LIST — embedded list inside a Layout
+
+`W_LIST` embeds a `ListLayout` directly inside a `Layout`, enabling a fixed header/footer with a scrollable list in between.
+
+```c
+const Layout settings_screen = LAYOUT(NULL,
+    { .type  = W_LABEL, .text = "SETTINGS",
+      .align = ALIGN_TOP_MID, .y = 4 },
+
+    { .type = W_LIST, .list = &settings_list,
+      .x = 0, .y = 24, .w = 240, .h = 268 },
+
+    { .type     = W_BTN, .text = "Back",
+      .align    = ALIGN_BOTTOM_MID, .w = 96, .h = 24, .y = -4,
+      .on_click = render_back },
+);
+```
+
+Focus navigates from the header widgets into the list and back out through the footer. Value editing inside `W_LIST` works identically to a standalone `ListLayout`.
+
+## Dirty-flag rendering
+
+The engine uses a dirty flag to avoid unnecessary redraws. All state changes (navigation, value edits, screen transitions) set the flag internally. The event loop only calls `render_refresh()`, which draws and clears the flag when set.
+
+```c
+// event loop skeleton
+while (1) {
+    wait_event_or_timeout(16 /*ms*/);
+    layouts_tick();      // update dynamic data, call render_mark_dirty() if changed
+    render_refresh();    // draws only when dirty
+}
+```
+
+Application code signals data changes via `render_mark_dirty()`. To avoid spurious redraws on static screens, check which layout is currently active before marking dirty:
+
+```c
+void layouts_tick(void) {
+    int is_home = (render_current_layout() == &home_layout);
+    if (is_home && sensor_updated()) {
+        update_sensor_buffers();
+        render_mark_dirty();
+    }
+}
+```
+
+Public API:
+
+```c
+void  render_refresh(void);          // draw if dirty, then clear flag
+void  render_mark_dirty(void);       // mark for redraw (call from data update code)
+int   render_is_dirty(void);
+
+const Layout     *render_current_layout(void);  // NULL when a ListLayout is active
+const ListLayout *render_current_list(void);    // NULL when a Layout is active
+```
 
 ## Navigation history
 
@@ -354,12 +411,9 @@ void render_init(void) {
 }
 
 // Backend contract — must also implement:
-void render_wait_key(void)              { /* platform event loop */ }
-void render_quit(void)                  { /* release resources */ }
-void render_set_font(const Font *f)     { /* update active font, call render_refresh() */ }
-void *render_screen_create(void)        { return NULL; }
-void  render_screen_destroy(void *root) { (void)root; }
-void  render_screen_load(void *root)    { (void)root; }
+void render_wait_key(void)          { /* platform event loop */ }
+void render_quit(void)              { /* release resources */ }
+void render_set_font(const Font *f) { /* update active font, call render_mark_dirty() */ }
 ```
 
 Add a new `add_executable` in `examples/CMakeLists.txt` and link against `screen-ui-core`.

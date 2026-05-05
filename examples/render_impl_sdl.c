@@ -1,9 +1,12 @@
 #include "render.h"
 #include "fonts.h"
 #include "layouts.h"
+#include "theme_default.h"
 #include <SDL2/SDL.h>
 #include <stdlib.h>
 #include <string.h>
+
+typedef struct { uint16_t fg; uint16_t bg; } DrawStyle;
 
 static SDL_Window   *window;
 static SDL_Renderer *sdl;
@@ -90,21 +93,13 @@ static void my_draw_border(int16_t x, int16_t y, int16_t w, int16_t h,
 }
 
 static void my_flush(void) {
+    static uint32_t frames = 0;
+    char title[64];
+    snprintf(title, sizeof(title), "screen-ui  [redraws: %u]", ++frames);
+    SDL_SetWindowTitle(window, title);
     SDL_RenderPresent(sdl);
 }
 
-static const Theme theme = {
-    .screen_bg      = 0x0000,
-    .text_fg        = 0xFFFF,
-    .widget_bg      = 0x2104,
-    .border_normal  = 0xFFFF,
-    .border_focused = 0x07FF,
-    .border_editing = 0xFFE0,
-    .border_subtle  = 0x4208,
-    .cursor_fg      = 0x0000,
-    .cursor_bg      = 0x07FF,
-    .hint_fg        = 0x8410,
-};
 
 // ── frame-level hooks ────────────────────────────────────────────────────────
 
@@ -318,8 +313,8 @@ static void sdl_draw_list_item(const Render *r,
         my_draw_text((int16_t)(x + (int16_t)row_w - 2 * cw), ty, ">", &s, s_font);
         if (item->hint) {
             DrawStyle sh = { .fg = t->hint_fg, .bg = row_bg };
-            int16_t hlen = (int16_t)strlen(item->hint);
-            int16_t hx   = (int16_t)(x + (int16_t)row_w - (hlen + 3) * cw);
+            int16_t hw = text_width(item->hint, s_font);
+            int16_t hx = (int16_t)(x + (int16_t)row_w - hw - 3 * cw);
             if (hx > tx) my_draw_text(hx, ty, item->hint, &sh, s_font);
         }
         return;
@@ -396,7 +391,7 @@ void render_impl_sdl_init(int screen_w, int screen_h, int sc) {
         .draw_list_separator = sdl_draw_list_separator,
     };
     render_set(&r);
-    render_set_theme(&theme);
+    render_set_theme(&theme_default);
 }
 
 void sdl_wait_key(void) {
@@ -404,47 +399,47 @@ void sdl_wait_key(void) {
     int was_str_edit = 0;
 
     while (1) {
-        if (!SDL_WaitEventTimeout(&e, 150)) {
+        // ── tick: advance animations and redraw every frame ──────────────
+        if (!SDL_WaitEventTimeout(&e, 16)) {
             layouts_tick();
-            render_refresh();
+            render_refresh();   // draws if dirty (set by engine events or layouts_tick)
             continue;
         }
         if (e.type == SDL_QUIT) exit(0);
 
         int str_edit = render_in_edit_mode();
-
         if (str_edit && !was_str_edit) SDL_StartTextInput();
         if (!str_edit && was_str_edit) SDL_StopTextInput();
         was_str_edit = str_edit;
 
+        // ── input: only change state (engine sets dirty internally) ───────
         if (str_edit) {
-            // ── string input mode (W_EDIT) ────────────────────────────────
             if (e.type == SDL_TEXTINPUT) {
                 render_edit_char(e.text.text[0]);
             } else if (e.type == SDL_KEYDOWN) {
                 switch (e.key.keysym.sym) {
-                    case SDLK_BACKSPACE: render_edit_delete();    break;
-                    case SDLK_LEFT:      render_prev();     break;
-                    case SDLK_RIGHT:     render_next();     break;
-                    case SDLK_RETURN:    render_activate(); break;
-                    case SDLK_ESCAPE:    render_cancel();         break;
+                    case SDLK_BACKSPACE: render_edit_delete(); break;
+                    case SDLK_LEFT:      render_prev();        break;
+                    case SDLK_RIGHT:     render_next();        break;
+                    case SDLK_RETURN:    render_activate();    break;
+                    case SDLK_ESCAPE:    render_cancel();      break;
                     default: break;
                 }
             }
         } else {
-            // ── navigation / value-edit (engine decides by mode) ──────────
             if (e.type != SDL_KEYDOWN) continue;
             switch (e.key.keysym.sym) {
-                case SDLK_DOWN:   render_next(); render_refresh(); break;
-                case SDLK_UP:     render_prev(); render_refresh(); break;
-                case SDLK_LEFT:   render_dec();  render_refresh(); break;
-                case SDLK_RIGHT:  render_inc();  render_refresh(); break;
+                case SDLK_DOWN:   render_next();    break;
+                case SDLK_UP:     render_prev();    break;
+                case SDLK_LEFT:   render_dec();     break;
+                case SDLK_RIGHT:  render_inc();     break;
                 case SDLK_RETURN:
-                case SDLK_SPACE:  render_activate();               break;
-                case SDLK_ESCAPE: render_cancel();                 break;
+                case SDLK_SPACE:  render_activate(); break;
+                case SDLK_ESCAPE: render_cancel();   break;
                 default: break;
             }
         }
+        // dirty flag will be drawn on the next tick
     }
 }
 
@@ -458,8 +453,4 @@ void render_init(void)     { render_impl_sdl_init(240, 320, 2); }
 void render_wait_key(void) { sdl_wait_key(); }
 void render_quit(void)     { sdl_quit(); }
 
-void  render_set_font(const Font *f)    { s_font = f; render_refresh(); }
-
-void *render_screen_create(void)        { return (void*)1; }
-void  render_screen_destroy(void *root) { (void)root; }
-void  render_screen_load(void *root)    { (void)root; }
+void render_set_font(const Font *f) { s_font = f; render_mark_dirty(); }
