@@ -40,6 +40,30 @@ static int          history_top = 0;
 void render_set(const Render *r)      { R = r; }
 void render_set_theme(const Theme *t) { T = t; }
 
+/* ── context helpers ────────────────────────────────────────────────────── */
+
+static Ctx screen_ctx(void) {
+    Ctx c;
+    c.r  = R;
+    c.t  = T;
+    c.ox = 0;
+    c.oy = 0;
+    c.cw = (int16_t)R->screen_w;
+    c.ch = (int16_t)R->screen_h;
+    return c;
+}
+
+static Ctx sub_ctx(int16_t ox, int16_t oy, int16_t cw, int16_t ch) {
+    Ctx c;
+    c.r  = R;
+    c.t  = T;
+    c.ox = ox;
+    c.oy = oy;
+    c.cw = cw;
+    c.ch = ch;
+    return c;
+}
+
 /* ── helpers ────────────────────────────────────────────────────────────── */
 
 static int list_is_selectable(const ListItem *item) {
@@ -242,6 +266,7 @@ static void draw_wlist(const Widget *w, int16_t wx, int16_t wy, int focused) {
         /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
+    Ctx ctx = sub_ctx(wx, wy, (int16_t)w->w, (int16_t)w->h);
     int n;
     const ListItem *items = list_items(w->list, &n);
     uint8_t row_h   = (w->list->row_h != 0U) ? w->list->row_h : (uint8_t)DEFAULT_ROW_H;
@@ -253,28 +278,29 @@ static void draw_wlist(const Widget *w, int16_t wx, int16_t wy, int focused) {
 
     for (int j = list_item_scroll; j < end; j++) {
         const ListItem *item      = &items[j];
-        int16_t         iy        = (int16_t)(wy + ((j - list_item_scroll) * (int)row_h));
+        int16_t         iy        = (int16_t)((j - list_item_scroll) * (int)row_h);
         int             item_foc  = ((focused != 0) && (j == list_item_focus)) ? 1 : 0;
         int             item_edit = ((item_foc != 0) && (edit_mode == 1)) ? 1 : 0;
 
         if (item->type == LI_SEPARATOR) {
             if (R->draw_list_separator != NULL) {
-                R->draw_list_separator(R, wx, iy, (uint16_t)w->w, row_h, T);
+                R->draw_list_separator(&ctx, 0, iy, (uint16_t)w->w, row_h);
             }
         } else {
             if (R->draw_list_item != NULL) {
-                R->draw_list_item(R, wx, iy, (uint16_t)w->w, row_h,
-                                  item, T, item_foc, item_edit);
+                R->draw_list_item(&ctx, 0, iy, (uint16_t)w->w, row_h,
+                                  item, item_foc, item_edit);
             }
         }
     }
 }
 
 static void draw_layout(const Layout *layout) {
+    Ctx ctx = screen_ctx();
     if ((edit_mode == 2) && (focus_item_idx >= 0) &&
         (layout->items[focus_item_idx].type == W_EDIT)) {
         if (R->draw_edit_overlay != NULL) {
-            R->draw_edit_overlay(R, &layout->items[focus_item_idx], T, edit_cursor);
+            R->draw_edit_overlay(&ctx, &layout->items[focus_item_idx], edit_cursor);
         }
         if (R->flush != NULL) {
             R->flush();
@@ -284,7 +310,7 @@ static void draw_layout(const Layout *layout) {
     }
 
     if (R->begin_frame != NULL) {
-        R->begin_frame(R, T);
+        R->begin_frame(&ctx);
     }
 
     for (uint8_t i = 0U; i < layout->count; i++) {
@@ -297,27 +323,27 @@ static void draw_layout(const Layout *layout) {
         switch (w->type) {
             case W_LABEL:
                 if (R->draw_label != NULL) {
-                    R->draw_label(R, x, y, w, T);
+                    R->draw_label(&ctx, x, y, w);
                 }
                 break;
             case W_BTN:
                 if (R->draw_btn != NULL) {
-                    R->draw_btn(R, x, y, w, T, focused);
+                    R->draw_btn(&ctx, x, y, w, focused);
                 }
                 break;
             case W_VALUE:
                 if (R->draw_value != NULL) {
-                    R->draw_value(R, x, y, w, T, focused, val_edit);
+                    R->draw_value(&ctx, x, y, w, focused, val_edit);
                 }
                 break;
             case W_PROGRESS:
                 if (R->draw_progress != NULL) {
-                    R->draw_progress(R, x, y, w, T);
+                    R->draw_progress(&ctx, x, y, w);
                 }
                 break;
             case W_EDIT:
                 if (R->draw_edit != NULL) {
-                    R->draw_edit(R, x, y, w, T, focused);
+                    R->draw_edit(&ctx, x, y, w, focused);
                 }
                 break;
             case W_LIST:
@@ -333,8 +359,9 @@ static void draw_layout(const Layout *layout) {
 }
 
 static void draw_list(const ListLayout *list) {
+    Ctx ctx = screen_ctx();
     if (R->begin_frame != NULL) {
-        R->begin_frame(R, T);
+        R->begin_frame(&ctx);
     }
 
     int n;
@@ -355,12 +382,12 @@ static void draw_list(const ListLayout *list) {
 
         if (item->type == LI_SEPARATOR) {
             if (R->draw_list_separator != NULL) {
-                R->draw_list_separator(R, 0, y, R->screen_w, row_h, T);
+                R->draw_list_separator(&ctx, 0, y, R->screen_w, row_h);
             }
         } else {
             if (R->draw_list_item != NULL) {
-                R->draw_list_item(R, 0, y, R->screen_w, row_h,
-                                  item, T, focused, editing);
+                R->draw_list_item(&ctx, 0, y, R->screen_w, row_h,
+                                  item, focused, editing);
             }
         }
     }

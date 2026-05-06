@@ -12,35 +12,41 @@ void render_set_theme(const Theme *t);
 
 typedef struct Render Render;
 
+/* cppcheck-suppress misra-c2012-5.6 */
+typedef struct Ctx Ctx;
+
+struct Ctx {
+    const Render *r;
+    const Theme  *t;
+    int16_t       ox;   /* x origin — absolute screen coords */
+    int16_t       oy;   /* y origin */
+    int16_t       cw;   /* clip width  */
+    int16_t       ch;   /* clip height */
+};
+
 struct Render {
-    // ── frame-level hooks ─────────────────────────────────────────────────────
-    void (*begin_frame)      (const Render *r, const Theme *t);
+    /* frame-level hooks */
+    void (*begin_frame)      (const Ctx *ctx);
     void (*flush)            (void);
-    // called instead of the normal frame when W_EDIT is in string-input mode
-    void (*draw_edit_overlay)(const Render *r, const Widget *w, const Theme *t, int cursor);
+    /* called instead of the normal frame when W_EDIT is in string-input mode */
+    void (*draw_edit_overlay)(const Ctx *ctx, const Widget *w, int cursor);
 
     uint16_t screen_w;
     uint16_t screen_h;
 
-    // ── widget draw callbacks ─────────────────────────────────────────────────
-    void (*draw_label)   (const Render *r, int16_t x, int16_t y,
-                          const Widget *w, const Theme *t);
-    void (*draw_btn)     (const Render *r, int16_t x, int16_t y,
-                          const Widget *w, const Theme *t, int focused);
-    void (*draw_value)   (const Render *r, int16_t x, int16_t y,
-                          const Widget *w, const Theme *t, int focused, int editing);
-    void (*draw_progress)(const Render *r, int16_t x, int16_t y,
-                          const Widget *w, const Theme *t);
-    void (*draw_edit)    (const Render *r, int16_t x, int16_t y,
-                          const Widget *w, const Theme *t, int focused);
-    // ── list callbacks ───────────────────────────────────────────────────────
-    void (*draw_list_item)     (const Render *r,
-                                int16_t x, int16_t y, uint16_t row_w, uint16_t row_h,
-                                const ListItem *item, const Theme *t,
-                                int focused, int editing);
-    void (*draw_list_separator)(const Render *r,
-                                int16_t x, int16_t y, uint16_t row_w, uint16_t row_h,
-                                const Theme *t);
+    /* widget draw callbacks — x/y are ctx-relative */
+    void (*draw_label)   (const Ctx *ctx, int16_t x, int16_t y, const Widget *w);
+    void (*draw_btn)     (const Ctx *ctx, int16_t x, int16_t y, const Widget *w, int focused);
+    void (*draw_value)   (const Ctx *ctx, int16_t x, int16_t y, const Widget *w, int focused, int editing);
+    void (*draw_progress)(const Ctx *ctx, int16_t x, int16_t y, const Widget *w);
+    void (*draw_edit)    (const Ctx *ctx, int16_t x, int16_t y, const Widget *w, int focused);
+
+    /* list callbacks */
+    void (*draw_list_item)     (const Ctx *ctx, int16_t x, int16_t y,
+                                uint16_t row_w, uint16_t row_h,
+                                const ListItem *item, int focused, int editing);
+    void (*draw_list_separator)(const Ctx *ctx, int16_t x, int16_t y,
+                                uint16_t row_w, uint16_t row_h);
 };
 
 void  render_set(const Render *r);
