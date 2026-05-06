@@ -103,11 +103,20 @@ typedef enum {
 typedef struct {
     const Widget *items;
     uint8_t       count;
-    int (*on_key)(RenderKey key);  // NULL = pass through; non-zero = consumed
+    uint16_t      bg;             /* panel background color (RGB565); 0 = theme screen_bg */
+    int (*on_key)(RenderKey key); /* NULL = pass through; non-zero = consumed */
 } Layout;
 
 #define LAYOUT(handler, ...) { \
     .items  = (const Widget[]){ __VA_ARGS__ }, \
     .count  = sizeof((const Widget[]){ __VA_ARGS__ }) / sizeof(Widget), \
+    .on_key = (handler) \
+}
+
+/* cppcheck-suppress misra-c2012-2.5 */
+#define LAYOUT_BG(handler, bg_color, ...) { \
+    .items  = (const Widget[]){ __VA_ARGS__ }, \
+    .count  = sizeof((const Widget[]){ __VA_ARGS__ }) / sizeof(Widget), \
+    .bg     = (bg_color), \
     .on_key = (handler) \
 }

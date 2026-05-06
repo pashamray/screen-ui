@@ -332,10 +332,11 @@ static void sdl_draw_edit_overlay(const Ctx *ctx, const Widget *w, int cursor) {
 
 static void menu_draw_label(const Ctx *ctx, int16_t x, int16_t y, const Widget *w)
 {
-    const Font *f = s_font;
-    uint16_t fg = (w->colors != NULL) ? w->colors->fg : ctx->t->text_fg;
-    int16_t tx = (w->w > 0) ? x : (int16_t)(x - (text_width(w->text, f) / 2));
-    DrawStyle s = { .fg = fg, .bg = ctx->t->screen_bg };
+    const Font *f  = s_font;
+    uint16_t fg    = (w->colors != NULL) ? w->colors->fg : ctx->t->text_fg;
+    uint16_t bg    = (ctx->panel_bg != 0U) ? ctx->panel_bg : ctx->t->screen_bg;
+    int16_t tx     = (w->w > 0) ? x : (int16_t)(x - (text_width(w->text, f) / 2));
+    DrawStyle s    = { .fg = fg, .bg = bg };
     my_draw_text(ctx, tx, y, w->text, &s, f);
 }
 
@@ -569,6 +570,10 @@ static void sdl_draw_list_separator(const Ctx *ctx,
     my_fill_rect(ctx, x, mid, (int16_t)row_w, 1, ctx->t->border_subtle);
 }
 
+static void sdl_draw_fill(const Ctx *ctx, uint16_t color) {
+    my_fill_rect(ctx, 0, 0, ctx->cw, ctx->ch, color);
+}
+
 /* ── lifecycle ────────────────────────────────────────────────────────────── */
 /* cppcheck-suppress misra-c2012-8.4 */
 /* cppcheck-suppress misra-c2012-8.7 */
@@ -602,6 +607,7 @@ void render_impl_sdl_init(int screen_w, int screen_h, int sc) {
             .draw_edit        = menu_draw_edit,
             .draw_list_item      = sdl_draw_list_item,
             .draw_list_separator = sdl_draw_list_separator,
+            .draw_fill           = sdl_draw_fill,
         };
         render_set(&r);
         render_set_theme(&theme_default);

@@ -9,6 +9,7 @@ typedef struct Font Font;
 
 void render_set_theme(const Theme *t);
 
+#define STATIC_PANELS_MAX 4U
 
 typedef struct Render Render;
 
@@ -18,10 +19,11 @@ typedef struct Ctx Ctx;
 struct Ctx {
     const Render *r;
     const Theme  *t;
-    int16_t       ox;   /* x origin — absolute screen coords */
-    int16_t       oy;   /* y origin */
-    int16_t       cw;   /* clip width  */
-    int16_t       ch;   /* clip height */
+    int16_t       ox;       /* x origin — absolute screen coords */
+    int16_t       oy;       /* y origin */
+    int16_t       cw;       /* clip width  */
+    int16_t       ch;       /* clip height */
+    uint16_t      panel_bg; /* current panel background (0 = theme screen_bg) */
 };
 
 struct Render {
@@ -47,13 +49,19 @@ struct Render {
                                 const ListItem *item, int focused, int editing);
     void (*draw_list_separator)(const Ctx *ctx, int16_t x, int16_t y,
                                 uint16_t row_w, uint16_t row_h);
+    /* fill ctx area with a solid color (used for panel backgrounds) */
+    void (*draw_fill)(const Ctx *ctx, uint16_t color);
 };
 
 void  render_set(const Render *r);
-// ── screen-level entry points (mutually exclusive; share focus/edit state) ───
+/* screen-level entry points (mutually exclusive; share focus/edit state) */
 void  render_screen(const Layout *layout);
+void  render_screen_at(const Layout *layout, int16_t x, int16_t y, int16_t w, int16_t h);
 void  render_list(const ListLayout *list);
-void  render_back(void);            // pop history and restore previous screen
+/* static panels — drawn every frame without focus, saved/restored in nav history */
+void  render_add_static(const Layout *layout, int16_t x, int16_t y, int16_t w, int16_t h);
+void  render_remove_statics(void);
+void  render_back(void);            /* pop history and restore previous screen */
 int   render_can_back(void);        // non-zero if there is history to pop
 void  render_refresh(void);       // draw if dirty, then clear dirty
 void  render_mark_dirty(void);    // mark display as needing redraw (call from dynamic data updates)

@@ -22,45 +22,64 @@ static int               scroll_top   = 0;
 static int list_item_focus  = -1;
 static int list_item_scroll = 0;
 
+/* ── static panels ───────────────────────────────────────────────────────── */
+typedef struct { const Layout *layout; Ctx ctx; } StaticPanel;
+/* cppcheck-suppress misra-c2012-8.9 */
+static StaticPanel statics[STATIC_PANELS_MAX];
+static int         statics_n = 0;
+
+/* active drawing region for current_layout / current_list */
+static Ctx current_ctx;
+
 #define DEFAULT_ROW_H 20
 #define HISTORY_MAX   16
 
 typedef struct {
     const Layout     *layout;
     const ListLayout *list;
+    Ctx               ctx;
     int               focus_idx;
     int               scroll;
     int               list_item_focus;
     int               list_item_scroll;
+    StaticPanel       statics[STATIC_PANELS_MAX];
+    int               statics_n;
 } HistoryEntry;
 
 static HistoryEntry history[HISTORY_MAX];
 static int          history_top = 0;
 
-void render_set(const Render *r)      { R = r; }
+static Ctx sub_ctx(int16_t ox, int16_t oy, int16_t cw, int16_t ch);
+
+void render_set(const Render *r) {
+    R = r;
+    current_ctx = sub_ctx(0, 0, (int16_t)r->screen_w, (int16_t)r->screen_h);
+}
 void render_set_theme(const Theme *t) { T = t; }
 
 /* ── context helpers ────────────────────────────────────────────────────── */
 
 static Ctx screen_ctx(void) {
     Ctx c;
-    c.r  = R;
-    c.t  = T;
-    c.ox = 0;
-    c.oy = 0;
-    c.cw = (int16_t)R->screen_w;
-    c.ch = (int16_t)R->screen_h;
+    c.r        = R;
+    c.t        = T;
+    c.ox       = 0;
+    c.oy       = 0;
+    c.cw       = (int16_t)R->screen_w;
+    c.ch       = (int16_t)R->screen_h;
+    c.panel_bg = 0U;
     return c;
 }
 
 static Ctx sub_ctx(int16_t ox, int16_t oy, int16_t cw, int16_t ch) {
     Ctx c;
-    c.r  = R;
-    c.t  = T;
-    c.ox = ox;
-    c.oy = oy;
-    c.cw = cw;
-    c.ch = ch;
+    c.r        = R;
+    c.t        = T;
+    c.ox       = ox;
+    c.oy       = oy;
+    c.cw       = cw;
+    c.ch       = ch;
+    c.panel_bg = 0U;
     return c;
 }
 
@@ -132,15 +151,19 @@ static void push_history(void) {
     }
     {
         int ht = history_top;
-        history_top = ht + 1;
-        history[ht] = (HistoryEntry){
-            .layout           = current_layout,
-            .list             = current_list,
-            .focus_idx        = focus_item_idx,
-            .scroll           = scroll_top,
-            .list_item_focus  = list_item_focus,
-            .list_item_scroll = list_item_scroll,
-        };
+        HistoryEntry *e    = &history[ht];
+        history_top        = ht + 1;
+        e->layout          = current_layout;
+        e->list            = current_list;
+        e->ctx             = current_ctx;
+        e->focus_idx       = focus_item_idx;
+        e->scroll          = scroll_top;
+        e->list_item_focus = list_item_focus;
+        e->list_item_scroll= list_item_scroll;
+        e->statics_n       = statics_n;
+        for (int i = 0; i < statics_n; i++) {
+            e->statics[i] = statics[i];
+        }
     }
 }
 
@@ -183,11 +206,11 @@ static int dispatch_key(RenderKey key) {
     return 0;
 }
 
-static void resolve(const Widget *w, int16_t *ox, int16_t *oy) {
+static void resolve(const Widget *w, const Ctx *ctx, int16_t *ox, int16_t *oy) {
     int16_t x  = w->x;
     int16_t y  = w->y;
-    int16_t sw = R->screen_w;
-    int16_t sh = R->screen_h;
+    int16_t sw = ctx->cw;
+    int16_t sh = ctx->ch;
     int16_t ww = w->w;
     int16_t wh = (w->h != 0) ? w->h : (int16_t)w->font.h;
 
@@ -261,12 +284,14 @@ static const ListItem *active_wlist_item(void) {
 
 /* ── draw ──────────────────────────────────────────────────────────────── */
 
-static void draw_wlist(const Widget *w, int16_t wx, int16_t wy, int focused) {
+static void draw_wlist(const Ctx *parent, const Widget *w, int16_t rx, int16_t ry, int focused) {
     if (w->list == NULL) {
         /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
-    Ctx ctx = sub_ctx(wx, wy, (int16_t)w->w, (int16_t)w->h);
+    /* rx/ry are parent-ctx-relative; convert to absolute for sub_ctx */
+    Ctx ctx = sub_ctx((int16_t)(parent->ox + rx), (int16_t)(parent->oy + ry),
+                      (int16_t)w->w, (int16_t)w->h);
     int n;
     const ListItem *items = list_items(w->list, &n);
     uint8_t row_h   = (w->list->row_h != 0U) ? w->list->row_h : (uint8_t)DEFAULT_ROW_H;
@@ -295,80 +320,54 @@ static void draw_wlist(const Widget *w, int16_t wx, int16_t wy, int focused) {
     }
 }
 
-static void draw_layout(const Layout *layout) {
-    Ctx ctx = screen_ctx();
-    if ((edit_mode == 2) && (focus_item_idx >= 0) &&
-        (layout->items[focus_item_idx].type == W_EDIT)) {
-        if (R->draw_edit_overlay != NULL) {
-            R->draw_edit_overlay(&ctx, &layout->items[focus_item_idx], edit_cursor);
-        }
-        if (R->flush != NULL) {
-            R->flush();
-        }
-        /* cppcheck-suppress misra-c2012-15.5 */
-        return;
-    }
+/* Draw layout into ctx with given focus index (-1 = no focus / static panel). */
+static void draw_layout_into(const Layout *layout, const Ctx *ctx, int focus_idx) {
+    /* Build a local ctx that carries the panel background so widget callbacks can use it */
+    Ctx lctx = *ctx;
+    lctx.panel_bg = (layout->bg != 0U) ? layout->bg : ctx->t->screen_bg;
 
-    if (R->begin_frame != NULL) {
-        R->begin_frame(&ctx);
+    if ((layout->bg != 0U) && (R->draw_fill != NULL)) {
+        R->draw_fill(&lctx, layout->bg);
     }
-
     for (uint8_t i = 0U; i < layout->count; i++) {
         const Widget *w = &layout->items[i];
         int16_t x;
         int16_t y;
-        resolve(w, &x, &y);
-        int focused  = (focus_item_idx == (int)i) ? 1 : 0;
+        resolve(w, &lctx, &x, &y);
+        int focused  = (focus_idx == (int)i) ? 1 : 0;
         int val_edit = ((focused != 0) && (edit_mode == 1)) ? 1 : 0;
         switch (w->type) {
             case W_LABEL:
-                if (R->draw_label != NULL) {
-                    R->draw_label(&ctx, x, y, w);
-                }
+                if (R->draw_label != NULL)    { R->draw_label(&lctx, x, y, w); }
                 break;
             case W_BTN:
-                if (R->draw_btn != NULL) {
-                    R->draw_btn(&ctx, x, y, w, focused);
-                }
+                if (R->draw_btn != NULL)      { R->draw_btn(&lctx, x, y, w, focused); }
                 break;
             case W_VALUE:
-                if (R->draw_value != NULL) {
-                    R->draw_value(&ctx, x, y, w, focused, val_edit);
-                }
+                if (R->draw_value != NULL)    { R->draw_value(&lctx, x, y, w, focused, val_edit); }
                 break;
             case W_PROGRESS:
-                if (R->draw_progress != NULL) {
-                    R->draw_progress(&ctx, x, y, w);
-                }
+                if (R->draw_progress != NULL) { R->draw_progress(&lctx, x, y, w); }
                 break;
             case W_EDIT:
-                if (R->draw_edit != NULL) {
-                    R->draw_edit(&ctx, x, y, w, focused);
-                }
+                if (R->draw_edit != NULL)     { R->draw_edit(&lctx, x, y, w, focused); }
                 break;
             case W_LIST:
-                draw_wlist(w, x, y, focused);
+                draw_wlist(&lctx, w, x, y, focused);
                 break;
             default:
                 break;
         }
     }
-    if (R->flush != NULL) {
-        R->flush();
-    }
 }
 
+/* Draw list content into current_ctx (no begin_frame/flush — render_refresh owns those). */
 static void draw_list(const ListLayout *list) {
-    Ctx ctx = screen_ctx();
-    if (R->begin_frame != NULL) {
-        R->begin_frame(&ctx);
-    }
-
     int n;
     const ListItem *items = list_items(list, &n);
     clamp_list_focus(items, n);
     uint8_t row_h   = (list->row_h != 0U) ? list->row_h : (uint8_t)DEFAULT_ROW_H;
-    int     visible = (int)R->screen_h / (int)row_h;
+    int     visible = (int)current_ctx.ch / (int)row_h;
     int     end     = scroll_top + visible;
     if (end > n) {
         end = n;
@@ -382,23 +381,21 @@ static void draw_list(const ListLayout *list) {
 
         if (item->type == LI_SEPARATOR) {
             if (R->draw_list_separator != NULL) {
-                R->draw_list_separator(&ctx, 0, y, R->screen_w, row_h);
+                R->draw_list_separator(&current_ctx, 0, y, current_ctx.cw, row_h);
             }
         } else {
             if (R->draw_list_item != NULL) {
-                R->draw_list_item(&ctx, 0, y, R->screen_w, row_h,
+                R->draw_list_item(&current_ctx, 0, y, current_ctx.cw, row_h,
                                   item, focused, editing);
             }
         }
-    }
-    if (R->flush != NULL) {
-        R->flush();
     }
 }
 
 /* ── API ─────────────────────────────────────────────────────────────────── */
 
-void render_screen(const Layout *layout) {
+/* cppcheck-suppress misra-c2012-8.7 */
+void render_screen_at(const Layout *layout, int16_t x, int16_t y, int16_t w, int16_t h) {
     push_history();
     current_list     = NULL;
     edit_mode        = 0;
@@ -406,6 +403,8 @@ void render_screen(const Layout *layout) {
     focus_item_idx   = -1;
     list_item_focus  = -1;
     list_item_scroll = 0;
+    statics_n        = 0;
+    current_ctx      = sub_ctx(x, y, w, h);
     for (int i = 0; i < (int)layout->count; i++) {
         if (is_selectable(&layout->items[i]) != 0) {
             focus_item_idx = i;
@@ -418,20 +417,47 @@ void render_screen(const Layout *layout) {
     dirty = 1;
 }
 
+void render_screen(const Layout *layout) {
+    render_screen_at(layout, 0, 0, (int16_t)R->screen_w, (int16_t)R->screen_h);
+}
+
 void render_refresh(void) {
     if (dirty == 0) {
         /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     dirty = 0;
+
+    Ctx screen = screen_ctx();
+
+    /* edit overlay: covers whole screen, bypasses panels */
+    if ((edit_mode == 2) && (current_layout != NULL) && (focus_item_idx >= 0) &&
+        (current_layout->items[focus_item_idx].type == W_EDIT)) {
+        if (R->draw_edit_overlay != NULL) {
+            R->draw_edit_overlay(&screen, &current_layout->items[focus_item_idx], edit_cursor);
+        }
+        if (R->flush != NULL) { R->flush(); }
+        /* cppcheck-suppress misra-c2012-15.5 */
+        return;
+    }
+
+    if (R->begin_frame != NULL) { R->begin_frame(&screen); }
+
     if (current_list != NULL) {
         draw_list(current_list);
     } else if (current_layout != NULL) {
-        draw_layout(current_layout);
+        draw_layout_into(current_layout, &current_ctx, focus_item_idx);
         /* cppcheck-suppress misra-c2012-15.7 */
     } else {
-        /* no action */
+        /* no active content */
     }
+
+    /* static panels drawn on top */
+    for (int i = 0; i < statics_n; i++) {
+        draw_layout_into(statics[i].layout, &statics[i].ctx, -1);
+    }
+
+    if (R->flush != NULL) { R->flush(); }
 }
 
 /* cppcheck-suppress misra-c2012-8.7 */
@@ -456,6 +482,8 @@ void render_list(const ListLayout *list) {
     focus_item_idx   = -1;
     list_item_focus  = -1;
     list_item_scroll = 0;
+    statics_n        = 0;
+    current_ctx      = sub_ctx(0, 0, (int16_t)R->screen_w, (int16_t)R->screen_h);
     int n;
     const ListItem *items = list_items(list, &n);
     for (int i = 0; i < n; i++) {
@@ -478,12 +506,17 @@ void render_back(void) {
     {
         int ht = history_top - 1;
         history_top = ht;
-        HistoryEntry e   = history[ht];
-        edit_mode        = 0;
-        focus_item_idx   = e.focus_idx;
-        scroll_top       = e.scroll;
-        list_item_focus  = e.list_item_focus;
-        list_item_scroll = e.list_item_scroll;
+        HistoryEntry e    = history[ht];
+        edit_mode         = 0;
+        focus_item_idx    = e.focus_idx;
+        scroll_top        = e.scroll;
+        list_item_focus   = e.list_item_focus;
+        list_item_scroll  = e.list_item_scroll;
+        current_ctx       = e.ctx;
+        statics_n         = e.statics_n;
+        for (int i = 0; i < e.statics_n; i++) {
+            statics[i] = e.statics[i];
+        }
         if (e.list != NULL) {
             current_layout = NULL;
             current_list   = e.list;
@@ -495,9 +528,27 @@ void render_back(void) {
     dirty = 1;
 }
 
+/* cppcheck-suppress misra-c2012-8.7 */
+void render_add_static(const Layout *layout, int16_t x, int16_t y, int16_t w, int16_t h) {
+    if (statics_n >= (int)STATIC_PANELS_MAX) {
+        /* cppcheck-suppress misra-c2012-15.5 */
+        return;
+    }
+    statics[statics_n].layout = layout;
+    statics[statics_n].ctx    = sub_ctx(x, y, w, h);
+    statics_n++;
+    dirty = 1;
+}
+
+/* cppcheck-suppress misra-c2012-8.7 */
+void render_remove_statics(void) {
+    statics_n = 0;
+    dirty = 1;
+}
+
 static void list_scroll_adjust(uint8_t row_h) {
     uint8_t effective_row_h = (row_h != 0U) ? row_h : (uint8_t)DEFAULT_ROW_H;
-    int visible = (int)R->screen_h / (int)effective_row_h;
+    int visible = (int)current_ctx.ch / (int)effective_row_h;
     if (focus_item_idx < scroll_top) {
         scroll_top = focus_item_idx;
     }

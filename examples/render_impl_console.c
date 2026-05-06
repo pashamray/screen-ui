@@ -201,9 +201,10 @@ static void console_begin_frame(const Ctx *ctx) {
 static void console_draw_label(const Ctx *ctx, int16_t x, int16_t y,
                                 const Widget *w) {
     uint16_t fg = (w->colors != NULL) ? w->colors->fg : ctx->t->text_fg;
+    uint16_t bg = (ctx->panel_bg != 0U) ? ctx->panel_bg : ctx->t->screen_bg;
     int tlen = (int)strlen(w->text);
     int16_t tx = (w->w > 0) ? x : (int16_t)(x - (tlen * (LOG_W / COLS)) / 2);
-    DrawStyle s = { .fg = fg, .bg = ctx->t->screen_bg };
+    DrawStyle s = { .fg = fg, .bg = bg };
     my_draw_text(ctx, tx, y, w->text, &s);
 }
 
@@ -423,6 +424,10 @@ static void console_draw_list_separator(const Ctx *ctx,
     my_fill_rect(ctx, x, mid, (int16_t)row_w, 1, ctx->t->border_subtle);
 }
 
+static void console_draw_fill(const Ctx *ctx, uint16_t color) {
+    my_fill_rect(ctx, 0, 0, ctx->cw, ctx->ch, color);
+}
+
 /* cppcheck-suppress misra-c2012-8.9 */
 static const Render render_impl_console = {
     .begin_frame  = console_begin_frame,
@@ -436,6 +441,7 @@ static const Render render_impl_console = {
     .draw_edit     = console_draw_edit,
     .draw_list_item      = console_draw_list_item,
     .draw_list_separator = console_draw_list_separator,
+    .draw_fill           = console_draw_fill,
 };
 
 /* cppcheck-suppress misra-c2012-8.4 */

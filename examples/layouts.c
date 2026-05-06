@@ -131,6 +131,22 @@ static void go_scan_demo(void);
 /* ── key handlers (cancel = navigate back) ──────────────────────────────── */
 
 
+/* ── Home header / footer (static panels) ──────────────────────────────── */
+
+/* cppcheck-suppress misra-c2012-8.9 */
+static const Layout home_header = LAYOUT_BG(NULL, 0x001FU,  /* dark blue */
+    { .type  = W_LABEL, .text = "HOME",
+      .align = ALIGN_TOP_MID, .y = 4 },
+    { .type  = W_LABEL, .text = wifi_buf,
+      .align = ALIGN_TOP_RIGHT, .x = -4, .y = 4 },
+);
+
+/* cppcheck-suppress misra-c2012-8.9 */
+static const Layout home_footer = LAYOUT_BG(NULL, 0x2104U,  /* dark gray */
+    { .type  = W_LABEL, .text = "screen-ui",
+      .align = ALIGN_TOP_MID, .y = 4 },
+);
+
 /* ── Home ─────────────────────────────────────────────────────────────────── */
 
 static int home_on_key(RenderKey key) {
@@ -152,16 +168,8 @@ static int home_on_key(RenderKey key) {
 
 /* cppcheck-suppress misra-c2012-8.7 */
 const Layout home_layout = LAYOUT(home_on_key,
-    { .type  = W_LABEL,
-      .text  = "HOME SCREEN",
-      .align = ALIGN_TOP_MID,
-      .y     = 4 },
-
-    { .type  = W_LABEL,
-      .text  = wifi_buf,
-      .align = ALIGN_TOP_RIGHT,
-      .x     = 0, .y = 4 },
-
+    /* sensors — ALIGN_CENTER: center of ctx (oy=24, ch=272) = abs 24+136 = 160,
+       same as center of full 320px screen, so y-offsets are unchanged */
     { .type  = W_LABEL,
       .text  = temp_buf,
       .align = ALIGN_CENTER,
@@ -195,24 +203,26 @@ const Layout home_layout = LAYOUT(home_on_key,
       .min   = 0,
       .max   = 100 },
 
+    /* signal — ALIGN_TOP_LEFT: subtract header height (24) to keep same absolute pos */
     { .type  = W_LABEL,
       .text  = "Sig",
       .align = ALIGN_TOP_LEFT,
-      .x = 214, .y = 94 },
+      .x = 214, .y = 70 },
 
     { .type  = W_PROGRESS,
       .align = ALIGN_TOP_LEFT,
-      .x = 218, .y = 106,
+      .x = 218, .y = 82,
       .w = 14, .h = 72,
       .value = &signal_lvl,
       .min   = 0,
       .max   = 100 },
 
+    /* Settings — ALIGN_BOTTOM_MID: aligns to content bottom (y=296), not screen bottom */
     { .type     = W_BTN,
       .text     = "Settings",
       .align    = ALIGN_BOTTOM_MID,
       .w = 96, .h = 24,
-      .y = -16,
+      .y = -4,
       .on_click = go_settings },
 );
 
@@ -794,7 +804,12 @@ void layouts_tick(void) {
 
 /* ── callbacks ─────────────────────────────────────────────────────────────── */
 
-static void go_home(void)      { render_screen(&home_layout); }
+static void go_home(void) {
+    /* header: y=0..24, content: y=24..296, footer: y=296..320 */
+    render_screen_at(&home_layout, 0, 24, 240, 272);
+    render_add_static(&home_header, 0, 0, 240, 24);
+    render_add_static(&home_footer, 0, 296, 240, 24);
+}
 static void go_settings(void)  { render_screen(&settings_layout); }
 static void go_display(void)   { render_screen(&display_layout); }
 static void go_network(void)   { render_screen(&network_layout); }
@@ -805,3 +820,6 @@ static void go_about(void)       { render_screen(&about_layout); }
 static void go_reset(void)       { render_screen(&reset_layout); }
 static void go_border_demo(void) { render_screen(&border_demo_layout); }
 static void go_demo_list(void)   { render_screen(&wlist_demo_layout); }
+
+/* cppcheck-suppress misra-c2012-8.7 */
+void layouts_init(void) { go_home(); }

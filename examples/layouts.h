@@ -2,6 +2,7 @@
 #include "widget.h"
 #include "widget_list.h"
 
+void layouts_init(void);   /* set up initial screen (home + static panels) */
 void layouts_tick(void);
 
 extern const Layout home_layout;

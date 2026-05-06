@@ -3,7 +3,7 @@
 
 int main(void) {
     render_init();
-    render_screen(&home_layout);
+    layouts_init();
     render_wait_key();
     render_quit();
     return 0;
