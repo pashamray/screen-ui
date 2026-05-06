@@ -79,9 +79,6 @@ static int mode   = 0;
 static const char *const modes[] = { "Mono", "Stereo", "Surround" };
 
 const Layout audio_layout = LAYOUT(NULL,
-    { .type  = W_LABEL, .text = "AUDIO",
-      .align = ALIGN_TOP_MID, .y = 4 },
-
     { .type  = W_VALUE, .text = "Volume",
       .align = ALIGN_CENTER, .w = 180, .h = 24, .y = -20,
       .value = &volume, .min = 0, .max = 100, .step = 5 },
@@ -94,21 +91,101 @@ const Layout audio_layout = LAYOUT(NULL,
     { .type  = W_PROGRESS,
       .align = ALIGN_CENTER, .w = 160, .h = 12, .y = 40,
       .value = &volume, .min = 0, .max = 100 },
+
+    { .type = W_BTN, .text = "Back",
+      .align = ALIGN_BOTTOM_MID, .w = 96, .h = 24, .y = -4,
+      .on_click = render_back },
 );
 ```
 
+Display with `render_screen(&audio_layout)` or `render_screen_at(&audio_layout, x, y, w, h)`.
+
 ### Alignment
+
+Widget coordinates are resolved relative to the active drawing context (`Ctx`), not the physical screen.
 
 | Constant | Anchor |
 |---|---|
-| `ALIGN_CENTER` | Screen center (x, y are offsets from center) |
+| `ALIGN_CENTER` | Context center (x, y are signed offsets from center) |
 | `ALIGN_TOP_MID` | Top edge, horizontally centered |
 | `ALIGN_TOP_LEFT` / `ALIGN_TOP_RIGHT` | Top corners |
 | `ALIGN_BOTTOM_LEFT` / `ALIGN_BOTTOM_MID` / `ALIGN_BOTTOM_RIGHT` | Bottom edge |
 
+## Drawing context (Ctx)
+
+Every renderer callback receives a `const Ctx *ctx` that bundles the renderer, theme, and active clip region:
+
+```c
+struct Ctx {
+    const Render *r;
+    const Theme  *t;
+    int16_t       ox;       // x origin — absolute screen coords
+    int16_t       oy;       // y origin
+    int16_t       cw;       // clip width
+    int16_t       ch;       // clip height
+    uint16_t      panel_bg; // panel background color (0 = theme screen_bg)
+};
+```
+
+Renderer callbacks use `ctx->ox`/`ctx->oy` to translate logical (context-relative) coordinates to physical screen coordinates, and `ctx->cw`/`ctx->ch` to clip drawing to the panel region.
+
+`ctx->panel_bg` is set from `Layout.bg` by the engine before widget callbacks are invoked — use it as the text background color in label callbacks so text looks correct on colored panels.
+
+## Screen regions
+
+Layouts and lists can be opened in a specific region of the screen rather than covering it entirely:
+
+```c
+render_screen_at(layout, x, y, w, h);   // open layout in sub-region
+render_list_at(list,   x, y, w, h);     // open list in sub-region
+```
+
+`render_screen()` and `render_list()` are shorthand for the full-screen versions.
+
+Widget alignment is always relative to the context region, so `ALIGN_BOTTOM_MID` anchors to the bottom of the region, not the physical screen.
+
+## Static panels
+
+Static panels are layouts drawn on every frame without participating in focus or input. They are registered after `render_screen_at()` / `render_list_at()` and automatically saved and restored through the navigation history.
+
+```c
+render_add_static(layout, x, y, w, h);  // add a panel drawn on top of content
+render_remove_statics(void);            // clear all panels for current screen
+```
+
+A static panel is just a `Layout` with an absolute position. The typical use is header and footer bars:
+
+```c
+// Shared title buffer — the layout stores a pointer; updating the buffer
+// before render_screen_at() changes what the header displays.
+static char header_title[32] = "";
+
+static const Layout screen_header = LAYOUT_BG(NULL, 0x001FU,  /* dark blue */
+    { .type = W_LABEL, .text = header_title, .align = ALIGN_TOP_MID, .y = 4 },
+);
+
+static void open_screen(const Layout *layout, const char *title) {
+    snprintf(header_title, sizeof(header_title), "%s", title);
+    render_screen_at(layout, 0, 24, 240, 296);   // content below header
+    render_add_static(&screen_header, 0, 0, 240, 24);
+}
+```
+
+`LAYOUT_BG(handler, color, ...)` sets a background fill color on the panel. The engine calls the renderer's `draw_fill` callback to paint that color before drawing the panel's widgets.
+
+The home screen example adds both a header and a footer:
+
+```c
+static void go_home(void) {
+    render_screen_at(&home_layout, 0, 24, 240, 272);
+    render_add_static(&home_header, 0,   0, 240, 24);
+    render_add_static(&home_footer, 0, 296, 240, 24);
+}
+```
+
 ## Lists
 
-`ListLayout` is a second render mode alongside `Layout`. Instead of absolute widget positions, items are stacked vertically at a fixed row height with automatic scrolling.
+`ListLayout` is a second render mode alongside `Layout`. Items are stacked vertically at a fixed row height with automatic scrolling.
 
 | Type | Description |
 |---|---|
@@ -138,8 +215,8 @@ const ListLayout settings_list = LIST_LAYOUT(NULL,
     { .type = LI_SEPARATOR },
 
     { .type = LI_LABEL,   .text = "NETWORK" },
-    { .type = LI_CHECK,   .text = "Wi-Fi",      .value = &wifi_on },
-    { .type = LI_SUBMENU, .text = "WiFi setup",  .hint = "WPA2", .on_click = go_wifi },
+    { .type = LI_CHECK,   .text = "Wi-Fi",     .value = &wifi_on },
+    { .type = LI_SUBMENU, .text = "WiFi setup", .hint = "WPA2", .on_click = go_wifi },
 
     { .type = LI_SEPARATOR },
 
@@ -147,9 +224,7 @@ const ListLayout settings_list = LIST_LAYOUT(NULL,
 );
 ```
 
-Display with `render_list(&settings_list)`. Navigation and value editing use the same focus/edit API as `Layout` screens — no changes needed in the event loop.
-
-Row height defaults to 20 px; override with `.row_h` on `ListLayout`. Items that exceed the screen height scroll automatically as focus moves.
+Row height defaults to 20 px; override with `.row_h` on `ListLayout`. Items that exceed the context height scroll automatically as focus moves.
 
 ### Dynamic lists
 
@@ -164,27 +239,22 @@ static const ListItem *get_wifi_items(uint8_t *out_count) {
     return wifi_items;
 }
 
-static const ListLayout wifi_list = {
-    .get_items = get_wifi_items,
-};
+static const ListLayout wifi_list = { .get_items = get_wifi_items };
 
 // After populating wifi_items / updating wifi_count:
 render_mark_dirty();
 ```
 
-If the list shrinks while it is displayed and `focus_item_idx` goes out of range, the engine automatically re-focuses the last selectable item.
+If the list shrinks while displayed and `focus_item_idx` goes out of range, the engine automatically re-focuses the last selectable item.
 
 ### W_LIST — embedded list inside a Layout
 
-`W_LIST` embeds a `ListLayout` directly inside a `Layout`, enabling a fixed header/footer with a scrollable list in between.
+`W_LIST` embeds a `ListLayout` directly inside a `Layout`, enabling a fixed footer button below a scrollable list.
 
 ```c
 const Layout settings_screen = LAYOUT(NULL,
-    { .type  = W_LABEL, .text = "SETTINGS",
-      .align = ALIGN_TOP_MID, .y = 4 },
-
     { .type = W_LIST, .list = &settings_list,
-      .x = 0, .y = 24, .w = 240, .h = 268 },
+      .x = 0, .y = 0, .w = 240, .h = 268 },
 
     { .type     = W_BTN, .text = "Back",
       .align    = ALIGN_BOTTOM_MID, .w = 96, .h = 24, .y = -4,
@@ -192,7 +262,7 @@ const Layout settings_screen = LAYOUT(NULL,
 );
 ```
 
-Focus navigates from the header widgets into the list and back out through the footer. Value editing inside `W_LIST` works identically to a standalone `ListLayout`.
+Focus navigates from the list into the footer. Value editing inside `W_LIST` works identically to a standalone `ListLayout`.
 
 ## Dirty-flag rendering
 
@@ -232,7 +302,7 @@ const ListLayout *render_current_list(void);    // NULL when a Layout is active
 
 ## Navigation history
 
-`render_back()` pops the navigation history and restores the previous screen — including its focus position and scroll offset. History is pushed automatically on every `render_screen()` and `render_list()` call.
+`render_back()` pops the navigation history and restores the previous screen — including its focus position, scroll offset, and registered static panels. History is pushed automatically on every `render_screen()`, `render_screen_at()`, `render_list()`, and `render_list_at()` call.
 
 ```c
 render_back();      // go to previous screen (no-op if history is empty)
@@ -247,7 +317,7 @@ Back buttons in lists or layouts can use `render_back` directly as `on_click`:
 { .type = LI_BTN, .text = "Back", .on_click = render_back }
 ```
 
-Screens that need custom Cancel behaviour (e.g. stopping a background task before leaving) still use `on_key`:
+Screens that need custom Cancel behaviour (e.g. stopping a background task before leaving) use `on_key`:
 
 ```c
 static int on_key_scan(RenderKey key) {
@@ -271,19 +341,6 @@ typedef enum {
     RENDER_KEY_INC,
     RENDER_KEY_DEC,
 } RenderKey;
-```
-
-Typical use — run a side effect before leaving on Cancel:
-
-```c
-static int on_key_scan(RenderKey key) {
-    if (key == RENDER_KEY_CANCEL) { stop_scan(); render_back(); return 1; }
-    return 0;
-}
-
-const ListLayout scan_list = LIST_LAYOUT(on_key_scan,
-    // ... items ...
-);
 ```
 
 Pass `NULL` when no interception is needed (Cancel = Back is automatic):
@@ -358,53 +415,61 @@ python3 fonts/gen_font.py MyFont.ttf 20 font_my
 
 A renderer implements frame-level hooks and per-widget draw callbacks. All visual logic lives in the implementation — the engine only resolves geometry and dispatches.
 
+All callbacks receive a `const Ctx *ctx` (see [Drawing context](#drawing-context-ctx)) that bundles the renderer, theme, and active clip region. Widget x/y coordinates are context-relative; add `ctx->ox` / `ctx->oy` to convert to absolute screen coordinates.
+
 ```c
-// frame hooks
-static void my_begin_frame(const Render *r, const Theme *t) {
-    // clear screen with t->screen_bg
+// ── frame hooks ──────────────────────────────────────────────────────────
+static void my_begin_frame(const Ctx *ctx) {
+    // clear screen with ctx->t->screen_bg
 }
 static void my_flush(void) {
     // send framebuffer to display
 }
-// optional: full-screen text input overlay for W_EDIT
-static void my_draw_edit_overlay(const Render *r, const Widget *w,
-                                  const Theme *t, int cursor) { ... }
+// optional — full-screen text input overlay for W_EDIT
+static void my_draw_edit_overlay(const Ctx *ctx, const Widget *w, int cursor) { ... }
 
-// widget callbacks
-static void my_draw_label   (const Render *r, int16_t x, int16_t y,
-                              const Widget *w, const Theme *t) { ... }
-static void my_draw_btn     (const Render *r, int16_t x, int16_t y,
-                              const Widget *w, const Theme *t, int focused) { ... }
-static void my_draw_value   (const Render *r, int16_t x, int16_t y,
-                              const Widget *w, const Theme *t,
-                              int focused, int editing) { ... }
-static void my_draw_progress(const Render *r, int16_t x, int16_t y,
-                              const Widget *w, const Theme *t) { ... }
-static void my_draw_edit    (const Render *r, int16_t x, int16_t y,
-                              const Widget *w, const Theme *t, int focused) { ... }
+// ── fill panel background (called when Layout.bg != 0) ──────────────────
+static void my_draw_fill(const Ctx *ctx, uint16_t color) {
+    // fill ctx region with color (ctx->ox, ctx->oy, ctx->cw, ctx->ch)
+}
 
-// list callbacks (NULL if list mode is not used)
-static void my_draw_list_item(const Render *r,
-                               int16_t x, int16_t y, uint16_t row_w, uint16_t row_h,
-                               const ListItem *item, const Theme *t,
+// ── widget callbacks ─────────────────────────────────────────────────────
+static void my_draw_label   (const Ctx *ctx, int16_t x, int16_t y,
+                              const Widget *w) { ... }
+static void my_draw_btn     (const Ctx *ctx, int16_t x, int16_t y,
+                              const Widget *w, int focused) { ... }
+static void my_draw_value   (const Ctx *ctx, int16_t x, int16_t y,
+                              const Widget *w, int focused, int editing) { ... }
+static void my_draw_progress(const Ctx *ctx, int16_t x, int16_t y,
+                              const Widget *w) { ... }
+static void my_draw_edit    (const Ctx *ctx, int16_t x, int16_t y,
+                              const Widget *w, int focused) { ... }
+
+// ── list callbacks (NULL if list mode is not used) ────────────────────────
+static void my_draw_list_item(const Ctx *ctx,
+                               int16_t x, int16_t y,
+                               uint16_t row_w, uint16_t row_h,
+                               const ListItem *item,
                                int focused, int editing) { ... }
-static void my_draw_list_separator(const Render *r,
-                                    int16_t x, int16_t y, uint16_t row_w, uint16_t row_h,
-                                    const Theme *t) { ... }
+static void my_draw_list_separator(const Ctx *ctx,
+                                    int16_t x, int16_t y,
+                                    uint16_t row_w, uint16_t row_h) { ... }
 
 void render_init(void) {
-    static const Render r = {
+    static Render r;
+    r = (Render){
         .begin_frame       = my_begin_frame,
         .flush             = my_flush,
         .draw_edit_overlay = my_draw_edit_overlay,  // NULL on platforms without keyboard
         .screen_w = 240, .screen_h = 320,
-        .draw_label         = my_draw_label,
-        .draw_btn           = my_draw_btn,
-        .draw_value         = my_draw_value,
-        .draw_progress      = my_draw_progress,
-        .draw_edit          = my_draw_edit,
+        .draw_label          = my_draw_label,
+        .draw_btn            = my_draw_btn,
+        .draw_value          = my_draw_value,
+        .draw_progress       = my_draw_progress,
+        .draw_edit           = my_draw_edit,
         .draw_list_item      = my_draw_list_item,
         .draw_list_separator = my_draw_list_separator,
+        .draw_fill           = my_draw_fill,         // NULL if panel backgrounds not needed
     };
     render_set(&r);
     render_set_theme(&theme);
