@@ -399,7 +399,8 @@ static void menu_draw_btn(const Ctx *ctx, int16_t x, int16_t y, const Widget *w,
 {
     const Font *f = s_font;
     uint16_t fg  = (w->colors != NULL) ? w->colors->fg : ctx->t->text_fg;
-    uint16_t bg  = (w->colors != NULL) ? w->colors->bg : ctx->t->screen_bg;
+    uint16_t bg  = (w->colors != NULL) ? w->colors->bg :
+                   ((focused != 0) ? ctx->t->widget_bg : ctx->t->screen_bg);
     uint16_t brd = (focused != 0) ? ctx->t->border_focused : ctx->t->border_subtle;
 
     my_fill_rect(ctx, x, y, w->w, w->h, bg);
@@ -482,12 +483,11 @@ static void sdl_draw_list_item(const Ctx *ctx,
         return;
     }
 
-    int16_t  tx = (int16_t)(x + pad + ((focused != 0) ? cw : 0));
+    int16_t  tx = (int16_t)(x + pad);
     DrawStyle s  = { .fg = fg, .bg = row_bg };
 
     if (focused != 0) {
-        DrawStyle sc = { .fg = ctx->t->border_focused, .bg = row_bg };
-        my_draw_text(ctx, (int16_t)(x + pad), ty, ">", &sc, s_font);
+        my_fill_rect(ctx, x, y, 3, (int16_t)row_h, ctx->t->border_focused);
     }
 
     if (item->type == LI_BTN) {
@@ -584,7 +584,9 @@ void render_impl_sdl_init(int screen_w, int screen_h, int sc) {
     /* cppcheck-suppress misra-c2012-17.3 */
     window = SDL_CreateWindow("screen-ui",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        screen_w * scale, screen_h * scale, 0);
+        screen_w * scale, screen_h * scale,
+        /* cppcheck-suppress misra-c2012-2.5 */
+        SDL_WINDOW_BORDERLESS);
     /* cppcheck-suppress misra-c2012-17.3 */
     (void)SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
     /* cppcheck-suppress misra-c2012-17.3 */

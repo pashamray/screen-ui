@@ -137,7 +137,7 @@ static void go_scan_demo(void);
 static char header_title[32] = "";
 
 /* cppcheck-suppress misra-c2012-8.9 */
-static const Layout screen_header = LAYOUT_BG(NULL, 0x001FU,   /* dark blue */
+static const Layout screen_header = LAYOUT_BG_BB(NULL, 0x001FU, 0x07FFU,
     { .type  = W_LABEL, .text = header_title,
       .align = ALIGN_TOP_MID, .y = 4 },
 );
@@ -157,7 +157,7 @@ static void open_screen(const Layout *layout, const char *title) {
 /* ── Home header / footer (static panels) ──────────────────────────────── */
 
 /* cppcheck-suppress misra-c2012-8.9 */
-static const Layout home_header = LAYOUT_BG(NULL, 0x001FU,  /* dark blue */
+static const Layout home_header = LAYOUT_BG_BB(NULL, 0x001FU, 0x07FFU,
     { .type  = W_LABEL, .text = "HOME",
       .align = ALIGN_TOP_MID, .y = 4 },
     { .type  = W_LABEL, .text = wifi_buf,
@@ -165,7 +165,7 @@ static const Layout home_header = LAYOUT_BG(NULL, 0x001FU,  /* dark blue */
 );
 
 /* cppcheck-suppress misra-c2012-8.9 */
-static const Layout home_footer = LAYOUT_BG(NULL, 0x2104U,  /* dark gray */
+static const Layout home_footer = LAYOUT_BG_BT(NULL, 0x2104U, 0x4208U,
     { .type  = W_LABEL, .text = "screen-ui",
       .align = ALIGN_TOP_MID, .y = 4 },
 );

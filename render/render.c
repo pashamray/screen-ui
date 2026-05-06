@@ -329,6 +329,11 @@ static void draw_layout_into(const Layout *layout, const Ctx *ctx, int focus_idx
     if ((layout->bg != 0U) && (R->draw_fill != NULL)) {
         R->draw_fill(&lctx, layout->bg);
     }
+    /* top separator line — drawn over the fill, under widgets */
+    if ((layout->border_t != 0U) && (R->draw_fill != NULL)) {
+        Ctx ln = lctx; ln.ch = 1;
+        R->draw_fill(&ln, layout->border_t);
+    }
     for (uint8_t i = 0U; i < layout->count; i++) {
         const Widget *w = &layout->items[i];
         int16_t x;
@@ -358,6 +363,13 @@ static void draw_layout_into(const Layout *layout, const Ctx *ctx, int focus_idx
             default:
                 break;
         }
+    }
+    /* bottom separator line — drawn on top of everything else in the panel */
+    if ((layout->border_b != 0U) && (R->draw_fill != NULL)) {
+        Ctx ln = lctx;
+        ln.oy = (int16_t)(lctx.oy + lctx.ch - 1);
+        ln.ch = 1;
+        R->draw_fill(&ln, layout->border_b);
     }
 }
 

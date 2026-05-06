@@ -104,6 +104,8 @@ typedef struct {
     const Widget *items;
     uint8_t       count;
     uint16_t      bg;             /* panel background color (RGB565); 0 = theme screen_bg */
+    uint16_t      border_t;       /* 1-px separator drawn at top    of panel (0 = none) */
+    uint16_t      border_b;       /* 1-px separator drawn at bottom of panel (0 = none) */
     int (*on_key)(RenderKey key); /* NULL = pass through; non-zero = consumed */
 } Layout;
 
@@ -119,4 +121,22 @@ typedef struct {
     .count  = sizeof((const Widget[]){ __VA_ARGS__ }) / sizeof(Widget), \
     .bg     = (bg_color), \
     .on_key = (handler) \
+}
+
+/* cppcheck-suppress misra-c2012-2.5 */
+#define LAYOUT_BG_BB(handler, bg_color, sep_color, ...) { \
+    .items    = (const Widget[]){ __VA_ARGS__ }, \
+    .count    = sizeof((const Widget[]){ __VA_ARGS__ }) / sizeof(Widget), \
+    .bg       = (bg_color), \
+    .border_b = (sep_color), \
+    .on_key   = (handler) \
+}
+
+/* cppcheck-suppress misra-c2012-2.5 */
+#define LAYOUT_BG_BT(handler, bg_color, sep_color, ...) { \
+    .items    = (const Widget[]){ __VA_ARGS__ }, \
+    .count    = sizeof((const Widget[]){ __VA_ARGS__ }) / sizeof(Widget), \
+    .bg       = (bg_color), \
+    .border_t = (sep_color), \
+    .on_key   = (handler) \
 }
