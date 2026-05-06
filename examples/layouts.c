@@ -128,8 +128,31 @@ static void go_border_demo(void);
 static void go_demo_list(void);
 static void go_scan_demo(void);
 
-/* ── key handlers (cancel = navigate back) ──────────────────────────────── */
+/* ── shared screen header ───────────────────────────────────────────────── */
 
+/* Title text updated by open_screen() before each render_screen_at() call.
+   The Widget holds a pointer to this buffer, so changing the contents is safe. */
+/* cppcheck-suppress misra-c2012-7.4 */
+/* cppcheck-suppress misra-c2012-8.9 */
+static char header_title[32] = "";
+
+/* cppcheck-suppress misra-c2012-8.9 */
+static const Layout screen_header = LAYOUT_BG(NULL, 0x001FU,   /* dark blue */
+    { .type  = W_LABEL, .text = header_title,
+      .align = ALIGN_TOP_MID, .y = 4 },
+);
+
+/* Open a sub-screen with the standard blue header bar.
+   All content layouts occupy y=24..320 (296 px high). */
+static void open_screen(const Layout *layout, const char *title) {
+    /* cppcheck-suppress misra-c2012-21.6 */
+    /* cppcheck-suppress misra-c2012-17.7 */
+    (void)snprintf(header_title, sizeof(header_title), "%s", title);
+    render_screen_at(layout, 0, 24, 240, 296);
+    render_add_static(&screen_header, 0, 0, 240, 24);
+}
+
+/* ── key handlers (cancel = navigate back) ──────────────────────────────── */
 
 /* ── Home header / footer (static panels) ──────────────────────────────── */
 
@@ -230,11 +253,6 @@ const Layout home_layout = LAYOUT(home_on_key,
 
 /* cppcheck-suppress misra-c2012-8.7 */
 const Layout settings_layout = LAYOUT(NULL,
-    { .type  = W_LABEL,
-      .text  = "SETTINGS",
-      .align = ALIGN_TOP_MID,
-      .y     = 4 },
-
     { .type     = W_BTN,
       .text     = "Display",
       .align    = ALIGN_CENTER,
@@ -265,15 +283,9 @@ const Layout settings_layout = LAYOUT(NULL,
 );
 
 /* ── Display (level 2) — inline W_VALUE ────────────────────────────────── */
-/* Pattern: edit value in-place (←→ without navigation) */
 
 /* cppcheck-suppress misra-c2012-8.7 */
 const Layout display_layout = LAYOUT(NULL,
-    { .type  = W_LABEL,
-      .text  = "DISPLAY",
-      .align = ALIGN_TOP_MID,
-      .y     = 4 },
-
     { .type          = W_VALUE,
       .text          = "Brightness",
       .align         = ALIGN_CENTER,
@@ -312,16 +324,10 @@ const Layout display_layout = LAYOUT(NULL,
       .on_click = render_back },
 );
 
-/* ── Network (level 2) — navigate to sub-screens ─────────────────────────── */
-/* Pattern: dedicated edit screen per section */
+/* ── Network (level 2) ─────────────────────────────────────────────────── */
 
 /* cppcheck-suppress misra-c2012-8.7 */
 const Layout network_layout = LAYOUT(NULL,
-    { .type  = W_LABEL,
-      .text  = "NETWORK",
-      .align = ALIGN_TOP_MID,
-      .y     = 4 },
-
     { .type     = W_BTN,
       .text     = "WiFi",
       .align    = ALIGN_CENTER,
@@ -348,11 +354,6 @@ const Layout network_layout = LAYOUT(NULL,
 
 /* cppcheck-suppress misra-c2012-8.7 */
 const Layout wifi_layout = LAYOUT(NULL,
-    { .type  = W_LABEL,
-      .text  = "WIFI",
-      .align = ALIGN_TOP_MID,
-      .y     = 4 },
-
     { .type           = W_VALUE,
       .text           = "Status",
       .align          = ALIGN_CENTER,
@@ -382,11 +383,6 @@ const Layout wifi_layout = LAYOUT(NULL,
 
 /* cppcheck-suppress misra-c2012-8.7 */
 const Layout bluetooth_layout = LAYOUT(NULL,
-    { .type  = W_LABEL,
-      .text  = "BLUETOOTH",
-      .align = ALIGN_TOP_MID,
-      .y     = 4 },
-
     { .type           = W_VALUE,
       .text           = "Status",
       .align          = ALIGN_CENTER,
@@ -416,11 +412,6 @@ const Layout bluetooth_layout = LAYOUT(NULL,
 
 /* cppcheck-suppress misra-c2012-8.7 */
 const Layout system_layout = LAYOUT(NULL,
-    { .type  = W_LABEL,
-      .text  = "SYSTEM",
-      .align = ALIGN_TOP_MID,
-      .y     = 4 },
-
     { .type     = W_BTN,
       .text     = "About",
       .align    = ALIGN_CENTER,
@@ -462,11 +453,6 @@ const Layout system_layout = LAYOUT(NULL,
 /* cppcheck-suppress misra-c2012-8.7 */
 const Layout about_layout = LAYOUT(NULL,
     { .type  = W_LABEL,
-      .text  = "ABOUT",
-      .align = ALIGN_TOP_MID,
-      .y     = 4 },
-
-    { .type  = W_LABEL,
       .text  = "FW:  v1.0.0",
       .align = ALIGN_CENTER,
       .y     = -20 },
@@ -496,14 +482,9 @@ static const WidgetColors danger_btn   = { .fg = 0xFFFFU, .bg = 0xC000U }; /* wh
 
 /* cppcheck-suppress misra-c2012-8.7 */
 const Layout reset_layout = LAYOUT(NULL,
-    { .type   = W_LABEL,
-      .text   = "RESET DEVICE?",
-      .colors = &danger_label,
-      .align  = ALIGN_TOP_MID,
-      .y      = 4 },
-
     { .type  = W_LABEL,
       .text  = "All data will be lost.",
+      .colors = &danger_label,
       .align = ALIGN_CENTER,
       .y     = -20 },
 
@@ -527,11 +508,6 @@ const Layout reset_layout = LAYOUT(NULL,
 
 /* cppcheck-suppress misra-c2012-8.7 */
 const Layout border_demo_layout = LAYOUT(NULL,
-    { .type  = W_LABEL,
-      .text  = "BORDER DEMO",
-      .align = ALIGN_TOP_MID,
-      .y     = 4 },
-
     { .type     = W_BTN,
       .text     = "Button A",
       .align    = ALIGN_CENTER,
@@ -572,7 +548,7 @@ const Layout border_demo_layout = LAYOUT(NULL,
 /* ── Scan demo (dynamic list) ──────────────────────────────────────────────── */
 
 #define SCAN_MAX_NETS  6
-#define SCAN_BUF_SIZE  (1 + SCAN_MAX_NETS + 1)
+#define SCAN_BUF_SIZE  (SCAN_MAX_NETS + 1)
 
 /* cppcheck-suppress misra-c2012-8.9 */
 static const char *const scan_ssids[SCAN_MAX_NETS] = {
@@ -612,11 +588,14 @@ static void go_scan_demo(void) {
     scan_timer  = 0;
     scan_nets   = 0U;
     scan_active = 1U;
-    scan_buf[0] = (ListItem){ .type = LI_LABEL, .text = "WIFI SCAN" };
-    scan_buf[1] = (ListItem){ .type = LI_LABEL, .text = "Scanning..." };
-    scan_buf[2] = (ListItem){ .type = LI_BTN,   .text = "Back", .on_click = leave_scan };
-    scan_total  = 3U;
-    render_list(&scan_list);
+    scan_buf[0] = (ListItem){ .type = LI_LABEL, .text = "Scanning..." };
+    scan_buf[1] = (ListItem){ .type = LI_BTN,   .text = "Back", .on_click = leave_scan };
+    scan_total  = 2U;
+    /* cppcheck-suppress misra-c2012-21.6 */
+    /* cppcheck-suppress misra-c2012-17.7 */
+    (void)snprintf(header_title, sizeof(header_title), "%s", "WIFI SCAN");
+    render_list_at(&scan_list, 0, 24, 240, 296);
+    render_add_static(&screen_header, 0, 0, 240, 24);
 }
 
 /* ── Demo list ──────────────────────────────────────────────────────────────── */
@@ -680,15 +659,14 @@ const ListLayout demo_list = LIST_LAYOUT(NULL,
 );
 
 /* ── W_LIST embedded demo ──────────────────────────────────────────────────── */
-/* Pattern: fixed header label + scrollable W_LIST + fixed footer button */
+/* Pattern: scrollable W_LIST occupying content area + fixed Back button */
 
 /* cppcheck-suppress misra-c2012-8.9 */
 static const Layout wlist_demo_layout = LAYOUT(NULL,
-    { .type  = W_LABEL, .text = "SETTINGS (W_LIST)",
-      .align = ALIGN_TOP_MID, .y = 4 },
-
+    /* List fills from y=0 to y=268 within content ctx (oy=24, ch=296);
+       leaves 28 px at the bottom for the Back button */
     { .type = W_LIST, .list = &demo_list,
-      .x = 0, .y = 24, .w = 240, .h = 268 },
+      .x = 0, .y = 0, .w = 240, .h = 268 },
 
     { .type     = W_BTN, .text = "Back",
       .align    = ALIGN_BOTTOM_MID, .w = 96, .h = 24, .y = -4,
@@ -810,16 +788,17 @@ static void go_home(void) {
     render_add_static(&home_header, 0, 0, 240, 24);
     render_add_static(&home_footer, 0, 296, 240, 24);
 }
-static void go_settings(void)  { render_screen(&settings_layout); }
-static void go_display(void)   { render_screen(&display_layout); }
-static void go_network(void)   { render_screen(&network_layout); }
-static void go_wifi(void)      { render_screen(&wifi_layout); }
-static void go_bluetooth(void) { render_screen(&bluetooth_layout); }
-static void go_system(void)    { render_screen(&system_layout); }
-static void go_about(void)       { render_screen(&about_layout); }
-static void go_reset(void)       { render_screen(&reset_layout); }
-static void go_border_demo(void) { render_screen(&border_demo_layout); }
-static void go_demo_list(void)   { render_screen(&wlist_demo_layout); }
+
+static void go_settings(void)    { open_screen(&settings_layout,    "SETTINGS"); }
+static void go_display(void)     { open_screen(&display_layout,     "DISPLAY"); }
+static void go_network(void)     { open_screen(&network_layout,     "NETWORK"); }
+static void go_wifi(void)        { open_screen(&wifi_layout,        "WIFI"); }
+static void go_bluetooth(void)   { open_screen(&bluetooth_layout,   "BLUETOOTH"); }
+static void go_system(void)      { open_screen(&system_layout,      "SYSTEM"); }
+static void go_about(void)       { open_screen(&about_layout,       "ABOUT"); }
+static void go_reset(void)       { open_screen(&reset_layout,       "RESET DEVICE?"); }
+static void go_border_demo(void) { open_screen(&border_demo_layout, "BORDER DEMO"); }
+static void go_demo_list(void)   { open_screen(&wlist_demo_layout,  "SETTINGS (W_LIST)"); }
 
 /* cppcheck-suppress misra-c2012-8.7 */
 void layouts_init(void) { go_home(); }

@@ -58,6 +58,7 @@ void  render_set(const Render *r);
 void  render_screen(const Layout *layout);
 void  render_screen_at(const Layout *layout, int16_t x, int16_t y, int16_t w, int16_t h);
 void  render_list(const ListLayout *list);
+void  render_list_at(const ListLayout *list, int16_t x, int16_t y, int16_t w, int16_t h);
 /* static panels — drawn every frame without focus, saved/restored in nav history */
 void  render_add_static(const Layout *layout, int16_t x, int16_t y, int16_t w, int16_t h);
 void  render_remove_statics(void);

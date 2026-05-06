@@ -469,7 +469,8 @@ const Layout     *render_current_layout(void) { return current_layout; }
 /* cppcheck-suppress misra-c2012-8.7 */
 const ListLayout *render_current_list(void)   { return current_list; }
 
-void render_list(const ListLayout *list) {
+/* cppcheck-suppress misra-c2012-8.7 */
+void render_list_at(const ListLayout *list, int16_t x, int16_t y, int16_t w, int16_t h) {
     if (list == NULL) {
         /* cppcheck-suppress misra-c2012-15.5 */
         return;
@@ -483,16 +484,22 @@ void render_list(const ListLayout *list) {
     list_item_focus  = -1;
     list_item_scroll = 0;
     statics_n        = 0;
-    current_ctx      = sub_ctx(0, 0, (int16_t)R->screen_w, (int16_t)R->screen_h);
-    int n;
-    const ListItem *items = list_items(list, &n);
-    for (int i = 0; i < n; i++) {
-        if (list_is_selectable(&items[i]) != 0) {
-            focus_item_idx = i;
-            break;
+    current_ctx      = sub_ctx(x, y, w, h);
+    {
+        int n;
+        const ListItem *items = list_items(list, &n);
+        for (int i = 0; i < n; i++) {
+            if (list_is_selectable(&items[i]) != 0) {
+                focus_item_idx = i;
+                break;
+            }
         }
     }
     dirty = 1;
+}
+
+void render_list(const ListLayout *list) {
+    render_list_at(list, 0, 0, (int16_t)R->screen_w, (int16_t)R->screen_h);
 }
 
 /* cppcheck-suppress misra-c2012-8.7 */
