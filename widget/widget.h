@@ -89,9 +89,13 @@ typedef enum {
     RENDER_KEY_DEC,
 } RenderKey;
 
+/* Layout flags (layout->flags) */
+#define LAY_BG_WIDGET  0x01U  /* fill bg from theme->widget_bg instead of layout->bg */
+
 typedef struct {
     const Widget *items;
     uint8_t       count;
+    uint8_t       flags;          /* LAY_BG_WIDGET etc. — occupies natural padding byte */
     uint16_t      bg;             /* panel background color (RGB565); 0 = theme screen_bg */
     uint16_t      border_t;       /* 1-px separator drawn at top    of panel (0 = none) */
     uint16_t      border_b;       /* 1-px separator drawn at bottom of panel (0 = none) */
@@ -123,6 +127,15 @@ typedef struct {
     .items    = (const Widget[]){ __VA_ARGS__ }, \
     .count    = sizeof((const Widget[]){ __VA_ARGS__ }) / sizeof(Widget), \
     .bg       = (bg_color), \
+    .border_t = (sep_color), \
+    .on_key   = (handler) \
+}
+
+/* Footer-style panel: fill from theme->widget_bg, 1-px top border */
+#define LAYOUT_WIDGET_BG_BT(handler, sep_color, ...) { \
+    .items    = (const Widget[]){ __VA_ARGS__ }, \
+    .count    = sizeof((const Widget[]){ __VA_ARGS__ }) / sizeof(Widget), \
+    .flags    = LAY_BG_WIDGET, \
     .border_t = (sep_color), \
     .on_key   = (handler) \
 }

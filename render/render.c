@@ -78,9 +78,9 @@ void render_set_gfx(const Gfx *g) {
     }
 }
 
-void render_set_view(const View *v)  { V = v; }
-void render_set_theme(const Theme *t) { T = t; }
-void render_set_font(const Font *f)  { F = f; dirty = 1; }
+void render_set_view(const View *v)   { V = v; }
+void render_set_theme(const Theme *t) { T = t; dirty = 1; }
+void render_set_font(const Font *f)   { F = f; dirty = 1; }
 
 /* ── helpers ────────────────────────────────────────────────────────────── */
 
@@ -312,10 +312,12 @@ static void draw_wlist(const Ctx *parent, const Widget *w, int16_t rx, int16_t r
 static void draw_layout_into(const Layout *layout, const Ctx *ctx, int focus_idx) {
     const View *v = active_view();
     Ctx lctx = *ctx;
-    lctx.panel_bg = (layout->bg != 0U) ? layout->bg : ctx->t->screen_bg;
+    uint16_t fill_color = ((layout->flags & LAY_BG_WIDGET) != 0U)
+                          ? ctx->t->widget_bg : layout->bg;
+    lctx.panel_bg = (fill_color != 0U) ? fill_color : ctx->t->screen_bg;
 
-    if ((layout->bg != 0U) && (G->fill != NULL)) {
-        G->fill(&lctx, 0, 0, lctx.cw, lctx.ch, layout->bg);
+    if ((fill_color != 0U) && (G->fill != NULL)) {
+        G->fill(&lctx, 0, 0, lctx.cw, lctx.ch, fill_color);
     }
     /* top separator — drawn over fill, under widgets */
     if ((layout->border_t != 0U) && (G->fill != NULL)) {
@@ -427,6 +429,15 @@ void render_refresh(void) {
         return;
     }
     dirty = 0;
+
+    current_ctx.gfx  = G;
+    current_ctx.t    = T;
+    current_ctx.font = F;
+    for (int i = 0; i < statics_n; i++) {
+        statics[i].ctx.gfx  = G;
+        statics[i].ctx.t    = T;
+        statics[i].ctx.font = F;
+    }
 
     const View *v = active_view();
     Ctx screen = screen_ctx();

@@ -136,7 +136,7 @@ static const Layout home_header = LAYOUT_BG_BB(NULL, 0x001FU, 0x07FFU,
       .align = ALIGN_TOP_RIGHT, .x = -4, .y = 4 },
 );
 
-static const Layout home_footer = LAYOUT_BG_BT(NULL, 0x2104U, 0x4208U,
+static const Layout home_footer = LAYOUT_WIDGET_BG_BT(NULL, 0x4208U,
     { .type  = W_LABEL, .text = "screen-ui",
       .align = ALIGN_TOP_MID, .y = 4 },
 );

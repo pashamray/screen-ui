@@ -8,6 +8,11 @@ Target platform: STM32G431 + ST7789 (SPI), 240×320. Renderers are plugged in se
 ```
 widget/      — widget types, Layout, ListLayout definitions
 render/      — engine: state machine, focus, edit modes, geometry resolution
+  render.c / render.h   — engine core
+  view_default.c        — platform-independent widget rendering (View)
+  ctx.h                 — Ctx drawing context
+  view.h                — View vtable
+gfx/         — Gfx hardware primitives vtable
 theme/       — Theme struct (colors)
 fonts/       — bitmap fonts: Terminus TTF 12–24 px + gen_font.py
 examples/
@@ -100,6 +105,24 @@ const Layout audio_layout = LAYOUT(NULL,
 
 Display with `render_screen(&audio_layout)` or `render_screen_at(&audio_layout, x, y, w, h)`.
 
+### Layout background and flags
+
+`Layout.bg` sets a panel fill color (RGB565). `0` means transparent — the engine's `begin` clear (theme `screen_bg`) shows through.
+
+`Layout.flags` carries per-panel behavior bits:
+
+| Flag | Meaning |
+|---|---|
+| `LAY_BG_WIDGET` | Fill panel background from `theme->widget_bg` instead of `Layout.bg` |
+
+Use `LAYOUT_WIDGET_BG_BT` to create a footer-style panel whose background always matches the active theme:
+
+```c
+static const Layout home_footer = LAYOUT_WIDGET_BG_BT(NULL, 0x4208U,
+    { .type = W_LABEL, .text = "screen-ui", .align = ALIGN_TOP_MID, .y = 4 },
+);
+```
+
 ### Alignment
 
 Widget coordinates are resolved relative to the active drawing context (`Ctx`), not the physical screen.
@@ -113,23 +136,30 @@ Widget coordinates are resolved relative to the active drawing context (`Ctx`), 
 
 ## Drawing context (Ctx)
 
-Every renderer callback receives a `const Ctx *ctx` that bundles the renderer, theme, and active clip region:
+Every renderer callback receives a `const Ctx *ctx` that bundles the hardware backend, theme, font, and active clip region:
 
 ```c
-struct Ctx {
-    const Render *r;
-    const Theme  *t;
-    int16_t       ox;       // x origin — absolute screen coords
-    int16_t       oy;       // y origin
-    int16_t       cw;       // clip width
-    int16_t       ch;       // clip height
-    uint16_t      panel_bg; // panel background color (0 = theme screen_bg)
-};
+typedef struct Ctx {
+    const Gfx   *gfx;     // hardware primitives (fill / text / border / begin / flush)
+    const Theme *t;        // active theme
+    const Font  *font;     // active font
+    int16_t      ox;       // x origin — absolute screen coordinates
+    int16_t      oy;       // y origin
+    int16_t      cw;       // clip width
+    int16_t      ch;       // clip height
+    uint16_t     panel_bg; // panel background color (0 = theme screen_bg)
+} Ctx;
 ```
 
-Renderer callbacks use `ctx->ox`/`ctx->oy` to translate logical (context-relative) coordinates to physical screen coordinates, and `ctx->cw`/`ctx->ch` to clip drawing to the panel region.
+`ctx->gfx` provides three drawing primitives: `fill`, `text`, and `border`. Widget drawing code calls these directly — it has no knowledge of the underlying hardware.
 
-`ctx->panel_bg` is set from `Layout.bg` by the engine before widget callbacks are invoked — use it as the text background color in label callbacks so text looks correct on colored panels.
+`ctx->panel_bg` is set from `Layout.bg` (or `theme->widget_bg` when `LAY_BG_WIDGET` is set) before widget callbacks are invoked. Use it as the text background color so labels look correct on colored panels.
+
+A sub-context for a child region can be derived with:
+
+```c
+Ctx child = ctx_sub(parent, abs_ox, abs_oy, w, h);
+```
 
 ## Screen regions
 
@@ -156,11 +186,9 @@ render_remove_statics(void);            // clear all panels for current screen
 A static panel is just a `Layout` with an absolute position. The typical use is header and footer bars:
 
 ```c
-// Shared title buffer — the layout stores a pointer; updating the buffer
-// before render_screen_at() changes what the header displays.
 static char header_title[32] = "";
 
-static const Layout screen_header = LAYOUT_BG(NULL, 0x001FU,  /* dark blue */
+static const Layout screen_header = LAYOUT_BG_BB(NULL, 0x001FU, 0x07FFU,
     { .type = W_LABEL, .text = header_title, .align = ALIGN_TOP_MID, .y = 4 },
 );
 
@@ -171,11 +199,13 @@ static void open_screen(const Layout *layout, const char *title) {
 }
 ```
 
-`LAYOUT_BG(handler, color, ...)` sets a background fill color on the panel. The engine calls the renderer's `draw_fill` callback to paint that color before drawing the panel's widgets.
-
-The home screen example adds both a header and a footer:
+The home screen adds both a header and a footer. The footer uses `LAYOUT_WIDGET_BG_BT` so its background follows the active theme:
 
 ```c
+static const Layout home_footer = LAYOUT_WIDGET_BG_BT(NULL, 0x4208U,
+    { .type = W_LABEL, .text = "screen-ui", .align = ALIGN_TOP_MID, .y = 4 },
+);
+
 static void go_home(void) {
     render_screen_at(&home_layout, 0, 24, 240, 272);
     render_add_static(&home_header, 0,   0, 240, 24);
@@ -353,10 +383,10 @@ const Layout home_layout = LAYOUT(NULL,
 
 ## Themes
 
-`Theme` is defined in `theme/theme.h`. Each renderer implementation provides its own theme and sets it during init:
+`Theme` is defined in `theme/theme.h`. Pass a theme pointer to the engine during init; it can be switched at any time and takes effect on the next `render_refresh()`.
 
 ```c
-static const Theme theme = {
+static const Theme theme_dark = {
     .screen_bg      = 0x0000,  // RGB565 black
     .text_fg        = 0xFFFF,
     .widget_bg      = 0x2104,
@@ -369,17 +399,14 @@ static const Theme theme = {
     .hint_fg        = 0x8410,
 };
 
-void render_init(void) {
-    render_set(&r);
-    render_set_theme(&theme);
-}
+render_set_theme(&theme_dark);
 ```
 
-Themes can be switched at runtime from any screen:
+Runtime switch from any screen:
 
 ```c
 static void apply_theme(int idx) {
-    render_set_theme(themes[idx]);
+    render_set_theme(themes[idx]);   // marks dirty; takes full effect immediately
 }
 ```
 
@@ -397,10 +424,10 @@ Fonts are declared in `fonts/fonts.h`. The project ships with **Terminus TTF** a
 | `font_terminus22` | 22 px | 11×22 |
 | `font_terminus24` | 24 px | 12×24 |
 
-The active font can be switched at runtime:
+The active font is set via the engine and can be switched at runtime:
 
 ```c
-render_set_font(&font_terminus16);
+render_set_font(&font_terminus16);  // marks dirty; takes full effect immediately
 ```
 
 ### Adding a new font
@@ -413,72 +440,80 @@ python3 fonts/gen_font.py MyFont.ttf 20 font_my
 
 ## Custom renderer
 
-A renderer implements frame-level hooks and per-widget draw callbacks. All visual logic lives in the implementation — the engine only resolves geometry and dispatches.
+The renderer is split into two layers:
 
-All callbacks receive a `const Ctx *ctx` (see [Drawing context](#drawing-context-ctx)) that bundles the renderer, theme, and active clip region. Widget x/y coordinates are context-relative; add `ctx->ox` / `ctx->oy` to convert to absolute screen coordinates.
+- **`Gfx`** — hardware primitives (fill rectangle, draw text, draw border, frame hooks). Platform-specific.
+- **`View`** — widget drawing (label, button, value, progress, edit, list item). Platform-independent; the project ships `view_default` which both SDL and console backends use.
+
+### Implementing Gfx
+
+Implement five callbacks and populate a `Gfx` struct:
 
 ```c
-// ── frame hooks ──────────────────────────────────────────────────────────
-static void my_begin_frame(const Ctx *ctx) {
-    // clear screen with ctx->t->screen_bg
+#include "gfx/gfx.h"
+#include "render/ctx.h"
+
+static void my_fill(const Ctx *ctx, int16_t x, int16_t y, int16_t w, int16_t h,
+                    uint16_t color) {
+    // fill rectangle; clip to ctx->ox/oy + ctx->cw/ch
+}
+static void my_text(const Ctx *ctx, int16_t x, int16_t y, const char *s,
+                    const Font *f, uint16_t fg, uint16_t bg) {
+    // draw text with bitmap font f; clip to ctx region
+}
+static void my_border(const Ctx *ctx, int16_t x, int16_t y, int16_t w, int16_t h,
+                      uint16_t color, uint8_t thickness) {
+    // draw rectangle border; clip to ctx region
+}
+static void my_begin(const Ctx *ctx) {
+    // clear screen to ctx->t->screen_bg
 }
 static void my_flush(void) {
-    // send framebuffer to display
+    // present framebuffer to display
 }
-// optional — full-screen text input overlay for W_EDIT
-static void my_draw_edit_overlay(const Ctx *ctx, const Widget *w, int cursor) { ... }
-
-// ── fill panel background (called when Layout.bg != 0) ──────────────────
-static void my_draw_fill(const Ctx *ctx, uint16_t color) {
-    // fill ctx region with color (ctx->ox, ctx->oy, ctx->cw, ctx->ch)
-}
-
-// ── widget callbacks ─────────────────────────────────────────────────────
-static void my_draw_label   (const Ctx *ctx, int16_t x, int16_t y,
-                              const Widget *w) { ... }
-static void my_draw_btn     (const Ctx *ctx, int16_t x, int16_t y,
-                              const Widget *w, int focused) { ... }
-static void my_draw_value   (const Ctx *ctx, int16_t x, int16_t y,
-                              const Widget *w, int focused, int editing) { ... }
-static void my_draw_progress(const Ctx *ctx, int16_t x, int16_t y,
-                              const Widget *w) { ... }
-static void my_draw_edit    (const Ctx *ctx, int16_t x, int16_t y,
-                              const Widget *w, int focused) { ... }
-
-// ── list callbacks (NULL if list mode is not used) ────────────────────────
-static void my_draw_list_item(const Ctx *ctx,
-                               int16_t x, int16_t y,
-                               uint16_t row_w, uint16_t row_h,
-                               const ListItem *item,
-                               int focused, int editing) { ... }
-static void my_draw_list_separator(const Ctx *ctx,
-                                    int16_t x, int16_t y,
-                                    uint16_t row_w, uint16_t row_h) { ... }
 
 void render_init(void) {
-    static Render r;
-    r = (Render){
-        .begin_frame       = my_begin_frame,
-        .flush             = my_flush,
-        .draw_edit_overlay = my_draw_edit_overlay,  // NULL on platforms without keyboard
-        .screen_w = 240, .screen_h = 320,
-        .draw_label          = my_draw_label,
-        .draw_btn            = my_draw_btn,
-        .draw_value          = my_draw_value,
-        .draw_progress       = my_draw_progress,
-        .draw_edit           = my_draw_edit,
-        .draw_list_item      = my_draw_list_item,
-        .draw_list_separator = my_draw_list_separator,
-        .draw_fill           = my_draw_fill,         // NULL if panel backgrounds not needed
+    static Gfx gfx;
+    gfx = (Gfx){
+        .fill     = my_fill,
+        .text     = my_text,
+        .border   = my_border,
+        .begin    = my_begin,
+        .flush    = my_flush,
+        .screen_w = 240,
+        .screen_h = 320,
     };
-    render_set(&r);
-    render_set_theme(&theme);
+    render_set_gfx(&gfx);
+    render_set_view(NULL);           // NULL → use view_default
+    render_set_theme(&theme_dark);
+    render_set_font(&font_terminus20);
 }
 
 // Backend contract — must also implement:
-void render_wait_key(void)          { /* platform event loop */ }
-void render_quit(void)              { /* release resources */ }
-void render_set_font(const Font *f) { /* update active font, call render_mark_dirty() */ }
+void render_wait_key(void) { /* platform event loop */ }
+void render_quit(void)     { /* release resources */ }
+```
+
+### Custom View
+
+To replace or extend widget rendering, implement the `View` vtable and pass it to `render_set_view`. Pass `NULL` to fall back to `view_default`.
+
+```c
+#include "render/view.h"
+
+static void my_draw_label(const Ctx *ctx, int16_t x, int16_t y, const Widget *w) {
+    ctx->gfx->text(ctx, x, y, w->text, ctx->font,
+                   ctx->t->text_fg, ctx->panel_bg);
+}
+// ... other callbacks ...
+
+static const View my_view = {
+    .draw_label    = my_draw_label,
+    .draw_btn      = my_draw_btn,
+    // ... etc.
+};
+
+render_set_view(&my_view);
 ```
 
 Add a new `add_executable` in `examples/CMakeLists.txt` and link against `screen-ui-core`.
