@@ -7,12 +7,10 @@
 
 static int font_idx = 4;
 
-/* cppcheck-suppress misra-c2012-8.9 */
 static const Font *const font_list[] = {
     &font_terminus12, &font_terminus14, &font_terminus16,
     &font_terminus18, &font_terminus20, &font_terminus22, &font_terminus24,
 };
-/* cppcheck-suppress misra-c2012-8.9 */
 static const char *const font_names[] = {
     "12", "14", "16", "18", "20", "22", "24",
 };
@@ -47,7 +45,6 @@ static const Theme theme_light = {
     .hint_fg        = 0x8410U,
 };
 
-/* cppcheck-suppress misra-c2012-8.9 */
 static const Theme *const themes[] = { &theme_dark, &theme_light };
 
 static void apply_theme(int idx) {
@@ -56,15 +53,11 @@ static void apply_theme(int idx) {
 
 /* ── mutable state ──────────────────────────────────────────────────────── */
 
-/* cppcheck-suppress misra-c2012-8.9 */
 static int brightness = 80;
 static int theme_idx  = 0;
-/* cppcheck-suppress misra-c2012-8.9 */
 static int wifi_on    = 1;
 static int bt_on      = 0;
-/* cppcheck-suppress misra-c2012-8.9 */
 static int battery    = 75;
-/* cppcheck-suppress misra-c2012-8.9 */
 static int signal_lvl = 60;
 static int demo_val   = 40;
 
@@ -82,35 +75,20 @@ static const char *const lang_names[]  = { "English", "\xd0\xa0\xd1\x83\xd1\x81\
 static const char *const unit_names[]  = { "Metric", "Imperial" };
 
 /* dynamic home screen sensor values */
-/* cppcheck-suppress misra-c2012-8.9 */
 static int  temp_val  = 23;
-/* cppcheck-suppress misra-c2012-8.9 */
 static int  hum_val   = 55;
-/* cppcheck-suppress misra-c2012-8.9 */
 static int  pres_val  = 1013;
-/* cppcheck-suppress misra-c2012-7.4 */
-/* cppcheck-suppress misra-c2012-8.9 */
 static char temp_buf[24] = "Temperature: 23 C";
-/* cppcheck-suppress misra-c2012-7.4 */
-/* cppcheck-suppress misra-c2012-8.9 */
 static char hum_buf[24]  = "Humidity:    55 %";
-/* cppcheck-suppress misra-c2012-7.4 */
-/* cppcheck-suppress misra-c2012-8.9 */
 static char pres_buf[24] = "Pressure: 1013 hPa";
-/* cppcheck-suppress misra-c2012-7.4 */
-/* cppcheck-suppress misra-c2012-8.9 */
 static char wifi_buf[16]       = "WiFi: On";
-/* cppcheck-suppress misra-c2012-7.4 */
-/* cppcheck-suppress misra-c2012-8.9 */
 static char brightness_buf[24] = "Bright: 80%";
 
 static const char *const theme_names[]   = { "Dark", "Light" };
 static const char *const toggle_names[]  = { "Disabled", "Enabled" };
 
 /* W_EDIT buffers */
-/* cppcheck-suppress misra-c2012-7.4 */
 static char wifi_ssid[20] = "Home_Net";
-/* cppcheck-suppress misra-c2012-7.4 */
 static char bt_name[20]   = "STM32-Device";
 
 /* ── forward declarations ─────────────────────────────────────────────────── */
@@ -132,11 +110,8 @@ static void go_scan_demo(void);
 
 /* Title text updated by open_screen() before each render_screen_at() call.
    The Widget holds a pointer to this buffer, so changing the contents is safe. */
-/* cppcheck-suppress misra-c2012-7.4 */
-/* cppcheck-suppress misra-c2012-8.9 */
 static char header_title[32] = "";
 
-/* cppcheck-suppress misra-c2012-8.9 */
 static const Layout screen_header = LAYOUT_BG_BB(NULL, 0x001FU, 0x07FFU,
     { .type  = W_LABEL, .text = header_title,
       .align = ALIGN_TOP_MID, .y = 4 },
@@ -145,8 +120,6 @@ static const Layout screen_header = LAYOUT_BG_BB(NULL, 0x001FU, 0x07FFU,
 /* Open a sub-screen with the standard blue header bar.
    All content layouts occupy y=24..320 (296 px high). */
 static void open_screen(const Layout *layout, const char *title) {
-    /* cppcheck-suppress misra-c2012-21.6 */
-    /* cppcheck-suppress misra-c2012-17.7 */
     (void)snprintf(header_title, sizeof(header_title), "%s", title);
     render_screen_at(layout, 0, 24, 240, 296);
     render_add_static(&screen_header, 0, 0, 240, 24);
@@ -156,7 +129,6 @@ static void open_screen(const Layout *layout, const char *title) {
 
 /* ── Home header / footer (static panels) ──────────────────────────────── */
 
-/* cppcheck-suppress misra-c2012-8.9 */
 static const Layout home_header = LAYOUT_BG_BB(NULL, 0x001FU, 0x07FFU,
     { .type  = W_LABEL, .text = "HOME",
       .align = ALIGN_TOP_MID, .y = 4 },
@@ -164,7 +136,6 @@ static const Layout home_header = LAYOUT_BG_BB(NULL, 0x001FU, 0x07FFU,
       .align = ALIGN_TOP_RIGHT, .x = -4, .y = 4 },
 );
 
-/* cppcheck-suppress misra-c2012-8.9 */
 static const Layout home_footer = LAYOUT_BG_BT(NULL, 0x2104U, 0x4208U,
     { .type  = W_LABEL, .text = "screen-ui",
       .align = ALIGN_TOP_MID, .y = 4 },
@@ -180,16 +151,12 @@ static int home_on_key(RenderKey key) {
         if (key == RENDER_KEY_DEC) {
             brightness = (brightness > 10) ? (brightness - 10) : 10;
         }
-        /* cppcheck-suppress misra-c2012-21.6 */
-        /* cppcheck-suppress misra-c2012-17.7 */
         snprintf(brightness_buf, sizeof(brightness_buf), "Bright: %d%%", brightness);
-        /* cppcheck-suppress misra-c2012-15.5 */
         return 1;
     }
     return 0;
 }
 
-/* cppcheck-suppress misra-c2012-8.7 */
 const Layout home_layout = LAYOUT(home_on_key,
     /* sensors — ALIGN_CENTER: center of ctx (oy=24, ch=272) = abs 24+136 = 160,
        same as center of full 320px screen, so y-offsets are unchanged */
@@ -251,7 +218,6 @@ const Layout home_layout = LAYOUT(home_on_key,
 
 /* ── Settings (level 1) ──────────────────────────────────────────────────── */
 
-/* cppcheck-suppress misra-c2012-8.7 */
 const Layout settings_layout = LAYOUT(NULL,
     { .type     = W_BTN,
       .text     = "Display",
@@ -284,7 +250,6 @@ const Layout settings_layout = LAYOUT(NULL,
 
 /* ── Display (level 2) — inline W_VALUE ────────────────────────────────── */
 
-/* cppcheck-suppress misra-c2012-8.7 */
 const Layout display_layout = LAYOUT(NULL,
     { .type          = W_VALUE,
       .text          = "Brightness",
@@ -326,7 +291,6 @@ const Layout display_layout = LAYOUT(NULL,
 
 /* ── Network (level 2) ─────────────────────────────────────────────────── */
 
-/* cppcheck-suppress misra-c2012-8.7 */
 const Layout network_layout = LAYOUT(NULL,
     { .type     = W_BTN,
       .text     = "WiFi",
@@ -352,7 +316,6 @@ const Layout network_layout = LAYOUT(NULL,
 
 /* ── WiFi (level 3) — W_VALUE + W_EDIT ─────────────────────────────────── */
 
-/* cppcheck-suppress misra-c2012-8.7 */
 const Layout wifi_layout = LAYOUT(NULL,
     { .type           = W_VALUE,
       .text           = "Status",
@@ -381,7 +344,6 @@ const Layout wifi_layout = LAYOUT(NULL,
 
 /* ── Bluetooth (level 3) — W_VALUE + W_EDIT ─────────────────────────────── */
 
-/* cppcheck-suppress misra-c2012-8.7 */
 const Layout bluetooth_layout = LAYOUT(NULL,
     { .type           = W_VALUE,
       .text           = "Status",
@@ -410,7 +372,6 @@ const Layout bluetooth_layout = LAYOUT(NULL,
 
 /* ── System (level 2) ────────────────────────────────────────────────────── */
 
-/* cppcheck-suppress misra-c2012-8.7 */
 const Layout system_layout = LAYOUT(NULL,
     { .type     = W_BTN,
       .text     = "About",
@@ -450,7 +411,6 @@ const Layout system_layout = LAYOUT(NULL,
 
 /* ── About (level 3) ──────────────────────────────────────────────────────── */
 
-/* cppcheck-suppress misra-c2012-8.7 */
 const Layout about_layout = LAYOUT(NULL,
     { .type  = W_LABEL,
       .text  = "FW:  v1.0.0",
@@ -480,7 +440,6 @@ const Layout about_layout = LAYOUT(NULL,
 static const WidgetColors danger_label = { .fg = 0xF800U };                /* red text */
 static const WidgetColors danger_btn   = { .fg = 0xFFFFU, .bg = 0xC000U }; /* white on dark red */
 
-/* cppcheck-suppress misra-c2012-8.7 */
 const Layout reset_layout = LAYOUT(NULL,
     { .type  = W_LABEL,
       .text  = "All data will be lost.",
@@ -506,7 +465,6 @@ const Layout reset_layout = LAYOUT(NULL,
 
 /* ── Border demo (level 3) ─────────────────────────────────────────────────── */
 
-/* cppcheck-suppress misra-c2012-8.7 */
 const Layout border_demo_layout = LAYOUT(NULL,
     { .type     = W_BTN,
       .text     = "Button A",
@@ -550,7 +508,6 @@ const Layout border_demo_layout = LAYOUT(NULL,
 #define SCAN_MAX_NETS  6
 #define SCAN_BUF_SIZE  (SCAN_MAX_NETS + 1)
 
-/* cppcheck-suppress misra-c2012-8.9 */
 static const char *const scan_ssids[SCAN_MAX_NETS] = {
     "HomeNetwork_5G", "DIRECT-Samsung",  "Neighbor_2.4G",
     "iPhone_PS",      "Corp_Guest",      "MikroTik_Office",
@@ -572,13 +529,11 @@ static void leave_scan(void) { scan_active = 0U; render_back(); }
 static int on_key_back_to_demo_list(RenderKey key) {
     if (key == RENDER_KEY_CANCEL) {
         leave_scan();
-        /* cppcheck-suppress misra-c2012-15.5 */
         return 1;
     }
     return 0;
 }
 
-/* cppcheck-suppress misra-c2012-8.9 */
 static const ListLayout scan_list = {
     .get_items = get_scan_items,
     .on_key    = on_key_back_to_demo_list,
@@ -591,8 +546,6 @@ static void go_scan_demo(void) {
     scan_buf[0] = (ListItem){ .type = LI_LABEL, .text = "Scanning..." };
     scan_buf[1] = (ListItem){ .type = LI_BTN,   .text = "Back", .on_click = leave_scan };
     scan_total  = 2U;
-    /* cppcheck-suppress misra-c2012-21.6 */
-    /* cppcheck-suppress misra-c2012-17.7 */
     (void)snprintf(header_title, sizeof(header_title), "%s", "WIFI SCAN");
     render_list_at(&scan_list, 0, 24, 240, 296);
     render_add_static(&screen_header, 0, 0, 240, 24);
@@ -600,7 +553,6 @@ static void go_scan_demo(void) {
 
 /* ── Demo list ──────────────────────────────────────────────────────────────── */
 
-/* cppcheck-suppress misra-c2012-8.7 */
 const ListLayout demo_list = LIST_LAYOUT(NULL,
     { .type = LI_LABEL, .text = "DISPLAY" },
     { .type = LI_VALUE, .text = "Brightness",
@@ -661,7 +613,6 @@ const ListLayout demo_list = LIST_LAYOUT(NULL,
 /* ── W_LIST embedded demo ──────────────────────────────────────────────────── */
 /* Pattern: scrollable W_LIST occupying content area + fixed Back button */
 
-/* cppcheck-suppress misra-c2012-8.9 */
 static const Layout wlist_demo_layout = LAYOUT(NULL,
     /* List fills from y=0 to y=268 within content ctx (oy=24, ch=296);
        leaves 28 px at the bottom for the Back button */
@@ -696,8 +647,6 @@ void layouts_tick(void) {
             if (temp_val <= 19) {
                 temp_dir =  1;
             }
-            /* cppcheck-suppress misra-c2012-21.6 */
-            /* cppcheck-suppress misra-c2012-17.7 */
             snprintf(temp_buf, sizeof(temp_buf), "Temperature: %d C", temp_val);
             changed = 1;
         }
@@ -709,8 +658,6 @@ void layouts_tick(void) {
             if (hum_val <= 48) {
                 hum_dir =  1;
             }
-            /* cppcheck-suppress misra-c2012-21.6 */
-            /* cppcheck-suppress misra-c2012-17.7 */
             snprintf(hum_buf, sizeof(hum_buf), "Humidity:    %d %%", hum_val);
             changed = 1;
         }
@@ -722,8 +669,6 @@ void layouts_tick(void) {
             if (pres_val <= 1008) {
                 pres_dir =  1;
             }
-            /* cppcheck-suppress misra-c2012-21.6 */
-            /* cppcheck-suppress misra-c2012-17.7 */
             snprintf(pres_buf, sizeof(pres_buf), "Pressure: %d hPa", pres_val);
             changed = 1;
         }
@@ -748,8 +693,6 @@ void layouts_tick(void) {
         {
             static int prev_wifi_on = -1;
             if (wifi_on != prev_wifi_on) {
-                /* cppcheck-suppress misra-c2012-21.6 */
-                /* cppcheck-suppress misra-c2012-17.7 */
                 snprintf(wifi_buf, sizeof(wifi_buf), "WiFi: %s", (wifi_on != 0) ? "On" : "Off");
                 prev_wifi_on = wifi_on;
                 changed = 1;
@@ -800,5 +743,4 @@ static void go_reset(void)       { open_screen(&reset_layout,       "RESET DEVIC
 static void go_border_demo(void) { open_screen(&border_demo_layout, "BORDER DEMO"); }
 static void go_demo_list(void)   { open_screen(&wlist_demo_layout,  "SETTINGS (W_LIST)"); }
 
-/* cppcheck-suppress misra-c2012-8.7 */
 void layouts_init(void) { go_home(); }

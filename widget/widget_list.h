@@ -25,14 +25,12 @@ typedef struct {
     const WidgetColors *colors;  // NULL → theme default
 } ListItem;
 
-/* cppcheck-suppress misra-c2012-5.6 */
 typedef struct ListLayout {
     const ListItem *items;    // static items (when get_items == NULL)
     uint8_t         count;    // static count (when get_items == NULL)
     const ListItem *(*get_items)(uint8_t *out_count);  // dynamic: overrides items/count when non-NULL
     uint8_t         row_h;  // row height in pixels; 0 = DEFAULT_ROW_H (20)
     int (*on_key)(RenderKey key);  // NULL = pass through; non-zero = consumed
-/* cppcheck-suppress misra-c2012-5.6 */
 } ListLayout;
 
 #define LIST_LAYOUT(handler, ...) { \

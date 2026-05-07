@@ -2,7 +2,12 @@
 #include <stddef.h>
 #include <string.h>
 
-static const Render  *R;
+static const Gfx  *G = NULL;
+static const View *V = NULL;
+static const Font *F = NULL;
+static const Theme *T = NULL;
+static int dirty = 0;
+
 static const Layout  *current_layout = NULL;
 static int            focus_item_idx = -1;
 
@@ -11,9 +16,6 @@ static int  edit_mode   = 0;
 static int  edit_cursor = 0;
 static char edit_backup[64];
 static int  value_backup = 0;
-
-static const Theme *T = NULL;
-static int dirty = 0;
 
 static const ListLayout *current_list = NULL;
 static int               scroll_top   = 0;
@@ -24,7 +26,6 @@ static int list_item_scroll = 0;
 
 /* ── static panels ───────────────────────────────────────────────────────── */
 typedef struct { const Layout *layout; Ctx ctx; } StaticPanel;
-/* cppcheck-suppress misra-c2012-8.9 */
 static StaticPanel statics[STATIC_PANELS_MAX];
 static int         statics_n = 0;
 
@@ -49,32 +50,13 @@ typedef struct {
 static HistoryEntry history[HISTORY_MAX];
 static int          history_top = 0;
 
-static Ctx sub_ctx(int16_t ox, int16_t oy, int16_t cw, int16_t ch);
-
-void render_set(const Render *r) {
-    R = r;
-    current_ctx = sub_ctx(0, 0, (int16_t)r->screen_w, (int16_t)r->screen_h);
-}
-void render_set_theme(const Theme *t) { T = t; }
-
 /* ── context helpers ────────────────────────────────────────────────────── */
 
-static Ctx screen_ctx(void) {
+static Ctx make_ctx(int16_t ox, int16_t oy, int16_t cw, int16_t ch) {
     Ctx c;
-    c.r        = R;
+    c.gfx      = G;
     c.t        = T;
-    c.ox       = 0;
-    c.oy       = 0;
-    c.cw       = (int16_t)R->screen_w;
-    c.ch       = (int16_t)R->screen_h;
-    c.panel_bg = 0U;
-    return c;
-}
-
-static Ctx sub_ctx(int16_t ox, int16_t oy, int16_t cw, int16_t ch) {
-    Ctx c;
-    c.r        = R;
-    c.t        = T;
+    c.font     = F;
     c.ox       = ox;
     c.oy       = oy;
     c.cw       = cw;
@@ -83,10 +65,30 @@ static Ctx sub_ctx(int16_t ox, int16_t oy, int16_t cw, int16_t ch) {
     return c;
 }
 
+static Ctx screen_ctx(void) {
+    return make_ctx(0, 0, (int16_t)G->screen_w, (int16_t)G->screen_h);
+}
+
+/* ── engine init ────────────────────────────────────────────────────────── */
+
+void render_set_gfx(const Gfx *g) {
+    G = g;
+    if (g != NULL) {
+        current_ctx = make_ctx(0, 0, (int16_t)g->screen_w, (int16_t)g->screen_h);
+    }
+}
+
+void render_set_view(const View *v)  { V = v; }
+void render_set_theme(const Theme *t) { T = t; }
+void render_set_font(const Font *f)  { F = f; dirty = 1; }
+
 /* ── helpers ────────────────────────────────────────────────────────────── */
 
+static const View *active_view(void) {
+    return (V != NULL) ? V : &view_default;
+}
+
 static int list_is_selectable(const ListItem *item) {
-    /* cppcheck-suppress misra-c2012-12.1 */
     return ((item->type == LI_BTN)
         || (item->type == LI_VALUE)
         || (item->type == LI_SUBMENU)
@@ -123,7 +125,6 @@ static const ListItem *list_items(const ListLayout *list, int *out_count) {
             c = 0U;
         }
         *out_count = (int)c;
-        /* cppcheck-suppress misra-c2012-15.5 */
         return items;
     }
     *out_count = (int)list->count;
@@ -131,7 +132,6 @@ static const ListItem *list_items(const ListLayout *list, int *out_count) {
 }
 
 static int is_selectable(const Widget *w) {
-    /* cppcheck-suppress misra-c2012-12.1 */
     return ((w->on_click != NULL)
         || (w->type == W_VALUE)
         || (w->type == W_EDIT)
@@ -140,7 +140,6 @@ static int is_selectable(const Widget *w) {
 
 static void push_history(void) {
     if ((current_layout == NULL) && (current_list == NULL)) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     if (history_top >= HISTORY_MAX) {
@@ -170,7 +169,6 @@ static void push_history(void) {
 static void clamp_list_focus(const ListItem *items, int n) {
     if (n == 0) {
         focus_item_idx = -1;
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     if (focus_item_idx >= n) {
@@ -178,7 +176,6 @@ static void clamp_list_focus(const ListItem *items, int n) {
         for (int i = n - 1; i >= 0; i--) {
             if (list_is_selectable(&items[i]) != 0) {
                 focus_item_idx = i;
-                /* cppcheck-suppress misra-c2012-15.5 */
                 return;
             }
         }
@@ -187,7 +184,6 @@ static void clamp_list_focus(const ListItem *items, int n) {
 
 static int dispatch_key(RenderKey key) {
     if (current_list != NULL) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return (current_list->on_key != NULL) ? current_list->on_key(key) : 0;
     }
     if (current_layout != NULL) {
@@ -195,12 +191,10 @@ static int dispatch_key(RenderKey key) {
             const Widget *w = &current_layout->items[focus_item_idx];
             if ((w->type == W_LIST) && (w->list != NULL) && (w->list->on_key != NULL)) {
                 if (w->list->on_key(key) != 0) {
-                    /* cppcheck-suppress misra-c2012-15.5 */
                     return 1;
                 }
             }
         }
-        /* cppcheck-suppress misra-c2012-15.5 */
         return (current_layout->on_key != NULL) ? current_layout->on_key(key) : 0;
     }
     return 0;
@@ -244,7 +238,6 @@ static void enter_list_widget(const Widget *w) {
     list_item_focus  = -1;
     list_item_scroll = 0;
     if (w->list == NULL) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     int n;
@@ -262,21 +255,17 @@ static void leave_list_widget(void) {
     list_item_scroll = 0;
 }
 
-/* Returns focused LI_VALUE item if W_LIST is active and in value-edit mode. */
 static const ListItem *active_wlist_item(void) {
     if ((current_layout == NULL) || (focus_item_idx < 0)) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return NULL;
     }
     const Widget *w = &current_layout->items[focus_item_idx];
     if ((w->type != W_LIST) || (w->list == NULL) || (list_item_focus < 0)) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return NULL;
     }
     int n;
     const ListItem *items = list_items(w->list, &n);
     if (list_item_focus >= n) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return NULL;
     }
     return &items[list_item_focus];
@@ -286,11 +275,10 @@ static const ListItem *active_wlist_item(void) {
 
 static void draw_wlist(const Ctx *parent, const Widget *w, int16_t rx, int16_t ry, int focused) {
     if (w->list == NULL) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
-    /* rx/ry are parent-ctx-relative; convert to absolute for sub_ctx */
-    Ctx ctx = sub_ctx((int16_t)(parent->ox + rx), (int16_t)(parent->oy + ry),
+    const View *v = active_view();
+    Ctx ctx = ctx_sub(parent, (int16_t)(parent->ox + rx), (int16_t)(parent->oy + ry),
                       (int16_t)w->w, (int16_t)w->h);
     int n;
     const ListItem *items = list_items(w->list, &n);
@@ -308,12 +296,12 @@ static void draw_wlist(const Ctx *parent, const Widget *w, int16_t rx, int16_t r
         int             item_edit = ((item_foc != 0) && (edit_mode == 1)) ? 1 : 0;
 
         if (item->type == LI_SEPARATOR) {
-            if (R->draw_list_separator != NULL) {
-                R->draw_list_separator(&ctx, 0, iy, (uint16_t)w->w, row_h);
+            if (v->draw_list_separator != NULL) {
+                v->draw_list_separator(&ctx, 0, iy, (uint16_t)w->w, row_h);
             }
         } else {
-            if (R->draw_list_item != NULL) {
-                R->draw_list_item(&ctx, 0, iy, (uint16_t)w->w, row_h,
+            if (v->draw_list_item != NULL) {
+                v->draw_list_item(&ctx, 0, iy, (uint16_t)w->w, row_h,
                                   item, item_foc, item_edit);
             }
         }
@@ -322,18 +310,19 @@ static void draw_wlist(const Ctx *parent, const Widget *w, int16_t rx, int16_t r
 
 /* Draw layout into ctx with given focus index (-1 = no focus / static panel). */
 static void draw_layout_into(const Layout *layout, const Ctx *ctx, int focus_idx) {
-    /* Build a local ctx that carries the panel background so widget callbacks can use it */
+    const View *v = active_view();
     Ctx lctx = *ctx;
     lctx.panel_bg = (layout->bg != 0U) ? layout->bg : ctx->t->screen_bg;
 
-    if ((layout->bg != 0U) && (R->draw_fill != NULL)) {
-        R->draw_fill(&lctx, layout->bg);
+    if ((layout->bg != 0U) && (G->fill != NULL)) {
+        G->fill(&lctx, 0, 0, lctx.cw, lctx.ch, layout->bg);
     }
-    /* top separator line — drawn over the fill, under widgets */
-    if ((layout->border_t != 0U) && (R->draw_fill != NULL)) {
+    /* top separator — drawn over fill, under widgets */
+    if ((layout->border_t != 0U) && (G->fill != NULL)) {
         Ctx ln = lctx; ln.ch = 1;
-        R->draw_fill(&ln, layout->border_t);
+        G->fill(&ln, 0, 0, ln.cw, ln.ch, layout->border_t);
     }
+
     for (uint8_t i = 0U; i < layout->count; i++) {
         const Widget *w = &layout->items[i];
         int16_t x;
@@ -343,19 +332,19 @@ static void draw_layout_into(const Layout *layout, const Ctx *ctx, int focus_idx
         int val_edit = ((focused != 0) && (edit_mode == 1)) ? 1 : 0;
         switch (w->type) {
             case W_LABEL:
-                if (R->draw_label != NULL)    { R->draw_label(&lctx, x, y, w); }
+                if (v->draw_label != NULL)    { v->draw_label(&lctx, x, y, w); }
                 break;
             case W_BTN:
-                if (R->draw_btn != NULL)      { R->draw_btn(&lctx, x, y, w, focused); }
+                if (v->draw_btn != NULL)      { v->draw_btn(&lctx, x, y, w, focused); }
                 break;
             case W_VALUE:
-                if (R->draw_value != NULL)    { R->draw_value(&lctx, x, y, w, focused, val_edit); }
+                if (v->draw_value != NULL)    { v->draw_value(&lctx, x, y, w, focused, val_edit); }
                 break;
             case W_PROGRESS:
-                if (R->draw_progress != NULL) { R->draw_progress(&lctx, x, y, w); }
+                if (v->draw_progress != NULL) { v->draw_progress(&lctx, x, y, w); }
                 break;
             case W_EDIT:
-                if (R->draw_edit != NULL)     { R->draw_edit(&lctx, x, y, w, focused); }
+                if (v->draw_edit != NULL)     { v->draw_edit(&lctx, x, y, w, focused); }
                 break;
             case W_LIST:
                 draw_wlist(&lctx, w, x, y, focused);
@@ -364,17 +353,18 @@ static void draw_layout_into(const Layout *layout, const Ctx *ctx, int focus_idx
                 break;
         }
     }
-    /* bottom separator line — drawn on top of everything else in the panel */
-    if ((layout->border_b != 0U) && (R->draw_fill != NULL)) {
+    /* bottom separator — drawn on top of everything in the panel */
+    if ((layout->border_b != 0U) && (G->fill != NULL)) {
         Ctx ln = lctx;
         ln.oy = (int16_t)(lctx.oy + lctx.ch - 1);
         ln.ch = 1;
-        R->draw_fill(&ln, layout->border_b);
+        G->fill(&ln, 0, 0, ln.cw, ln.ch, layout->border_b);
     }
 }
 
-/* Draw list content into current_ctx (no begin_frame/flush — render_refresh owns those). */
+/* Draw list content into current_ctx. */
 static void draw_list(const ListLayout *list) {
+    const View *v = active_view();
     int n;
     const ListItem *items = list_items(list, &n);
     clamp_list_focus(items, n);
@@ -392,12 +382,12 @@ static void draw_list(const ListLayout *list) {
         int             editing = ((focused != 0) && (edit_mode == 1)) ? 1 : 0;
 
         if (item->type == LI_SEPARATOR) {
-            if (R->draw_list_separator != NULL) {
-                R->draw_list_separator(&current_ctx, 0, y, current_ctx.cw, row_h);
+            if (v->draw_list_separator != NULL) {
+                v->draw_list_separator(&current_ctx, 0, y, current_ctx.cw, row_h);
             }
         } else {
-            if (R->draw_list_item != NULL) {
-                R->draw_list_item(&current_ctx, 0, y, current_ctx.cw, row_h,
+            if (v->draw_list_item != NULL) {
+                v->draw_list_item(&current_ctx, 0, y, current_ctx.cw, row_h,
                                   item, focused, editing);
             }
         }
@@ -406,7 +396,6 @@ static void draw_list(const ListLayout *list) {
 
 /* ── API ─────────────────────────────────────────────────────────────────── */
 
-/* cppcheck-suppress misra-c2012-8.7 */
 void render_screen_at(const Layout *layout, int16_t x, int16_t y, int16_t w, int16_t h) {
     push_history();
     current_list     = NULL;
@@ -416,7 +405,7 @@ void render_screen_at(const Layout *layout, int16_t x, int16_t y, int16_t w, int
     list_item_focus  = -1;
     list_item_scroll = 0;
     statics_n        = 0;
-    current_ctx      = sub_ctx(x, y, w, h);
+    current_ctx      = make_ctx(x, y, w, h);
     for (int i = 0; i < (int)layout->count; i++) {
         if (is_selectable(&layout->items[i]) != 0) {
             focus_item_idx = i;
@@ -430,36 +419,34 @@ void render_screen_at(const Layout *layout, int16_t x, int16_t y, int16_t w, int
 }
 
 void render_screen(const Layout *layout) {
-    render_screen_at(layout, 0, 0, (int16_t)R->screen_w, (int16_t)R->screen_h);
+    render_screen_at(layout, 0, 0, (int16_t)G->screen_w, (int16_t)G->screen_h);
 }
 
 void render_refresh(void) {
     if (dirty == 0) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     dirty = 0;
 
+    const View *v = active_view();
     Ctx screen = screen_ctx();
 
     /* edit overlay: covers whole screen, bypasses panels */
     if ((edit_mode == 2) && (current_layout != NULL) && (focus_item_idx >= 0) &&
         (current_layout->items[focus_item_idx].type == W_EDIT)) {
-        if (R->draw_edit_overlay != NULL) {
-            R->draw_edit_overlay(&screen, &current_layout->items[focus_item_idx], edit_cursor);
+        if (v->draw_edit_overlay != NULL) {
+            v->draw_edit_overlay(&screen, &current_layout->items[focus_item_idx], edit_cursor);
         }
-        if (R->flush != NULL) { R->flush(); }
-        /* cppcheck-suppress misra-c2012-15.5 */
+        if (G->flush != NULL) { G->flush(); }
         return;
     }
 
-    if (R->begin_frame != NULL) { R->begin_frame(&screen); }
+    if (G->begin != NULL) { G->begin(&screen); }
 
     if (current_list != NULL) {
         draw_list(current_list);
     } else if (current_layout != NULL) {
         draw_layout_into(current_layout, &current_ctx, focus_item_idx);
-        /* cppcheck-suppress misra-c2012-15.7 */
     } else {
         /* no active content */
     }
@@ -469,22 +456,16 @@ void render_refresh(void) {
         draw_layout_into(statics[i].layout, &statics[i].ctx, -1);
     }
 
-    if (R->flush != NULL) { R->flush(); }
+    if (G->flush != NULL) { G->flush(); }
 }
 
-/* cppcheck-suppress misra-c2012-8.7 */
 void render_mark_dirty(void)         { dirty = 1; }
-/* cppcheck-suppress misra-c2012-8.7 */
 int  render_is_dirty(void)           { return dirty; }
-/* cppcheck-suppress misra-c2012-8.7 */
 const Layout     *render_current_layout(void) { return current_layout; }
-/* cppcheck-suppress misra-c2012-8.7 */
 const ListLayout *render_current_list(void)   { return current_list; }
 
-/* cppcheck-suppress misra-c2012-8.7 */
 void render_list_at(const ListLayout *list, int16_t x, int16_t y, int16_t w, int16_t h) {
     if (list == NULL) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     push_history();
@@ -496,7 +477,7 @@ void render_list_at(const ListLayout *list, int16_t x, int16_t y, int16_t w, int
     list_item_focus  = -1;
     list_item_scroll = 0;
     statics_n        = 0;
-    current_ctx      = sub_ctx(x, y, w, h);
+    current_ctx      = make_ctx(x, y, w, h);
     {
         int n;
         const ListItem *items = list_items(list, &n);
@@ -511,15 +492,13 @@ void render_list_at(const ListLayout *list, int16_t x, int16_t y, int16_t w, int
 }
 
 void render_list(const ListLayout *list) {
-    render_list_at(list, 0, 0, (int16_t)R->screen_w, (int16_t)R->screen_h);
+    render_list_at(list, 0, 0, (int16_t)G->screen_w, (int16_t)G->screen_h);
 }
 
-/* cppcheck-suppress misra-c2012-8.7 */
 int render_can_back(void) { return (history_top > 0) ? 1 : 0; }
 
 void render_back(void) {
     if (history_top == 0) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     {
@@ -547,19 +526,16 @@ void render_back(void) {
     dirty = 1;
 }
 
-/* cppcheck-suppress misra-c2012-8.7 */
 void render_add_static(const Layout *layout, int16_t x, int16_t y, int16_t w, int16_t h) {
     if (statics_n >= (int)STATIC_PANELS_MAX) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     statics[statics_n].layout = layout;
-    statics[statics_n].ctx    = sub_ctx(x, y, w, h);
+    statics[statics_n].ctx    = make_ctx(x, y, w, h);
     statics_n++;
     dirty = 1;
 }
 
-/* cppcheck-suppress misra-c2012-8.7 */
 void render_remove_statics(void) {
     statics_n = 0;
     dirty = 1;
@@ -590,11 +566,9 @@ static void focus_next(void) {
                              item->options, item->options_count, item->on_change);
                 dirty = 1;
             }
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         if (focus_item_idx < 0) {
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         for (int i = 1; i <= n; i++) {
@@ -603,15 +577,12 @@ static void focus_next(void) {
                 focus_item_idx = idx;
                 list_scroll_adjust(current_list->row_h);
                 dirty = 1;
-                /* cppcheck-suppress misra-c2012-15.5 */
                 return;
             }
         }
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     if (current_layout == NULL) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     if (edit_mode == 1) {
@@ -620,7 +591,6 @@ static void focus_next(void) {
             change_value(w->value, -1, w->min, w->max, w->step,
                          w->options, w->options_count, w->on_change);
             dirty = 1;
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         {
@@ -631,7 +601,6 @@ static void focus_next(void) {
                 dirty = 1;
             }
         }
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     if (edit_mode == 2) {
@@ -640,11 +609,9 @@ static void focus_next(void) {
             edit_cursor++;
             dirty = 1;
         }
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
 
-    /* Navigate within W_LIST if focused */
     if (focus_item_idx >= 0) {
         const Widget *w = &current_layout->items[focus_item_idx];
         if ((w->type == W_LIST) && (w->list != NULL)) {
@@ -656,11 +623,9 @@ static void focus_next(void) {
                     list_item_focus = i;
                     wlist_scroll_adjust(w);
                     dirty = 1;
-                    /* cppcheck-suppress misra-c2012-15.5 */
                     return;
                 }
             }
-            /* reached end of list, leave it and fall through to next widget */
             leave_list_widget();
         }
     }
@@ -675,7 +640,6 @@ static void focus_next(void) {
                     enter_list_widget(&current_layout->items[idx]);
                 }
                 dirty = 1;
-                /* cppcheck-suppress misra-c2012-15.5 */
                 return;
             }
         }
@@ -694,11 +658,9 @@ static void focus_prev(void) {
                              item->options, item->options_count, item->on_change);
                 dirty = 1;
             }
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         if (focus_item_idx < 0) {
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         for (int i = 1; i <= n; i++) {
@@ -707,15 +669,12 @@ static void focus_prev(void) {
                 focus_item_idx = idx;
                 list_scroll_adjust(current_list->row_h);
                 dirty = 1;
-                /* cppcheck-suppress misra-c2012-15.5 */
                 return;
             }
         }
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     if (current_layout == NULL) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     if (edit_mode == 1) {
@@ -724,7 +683,6 @@ static void focus_prev(void) {
             change_value(w->value, +1, w->min, w->max, w->step,
                          w->options, w->options_count, w->on_change);
             dirty = 1;
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         {
@@ -735,7 +693,6 @@ static void focus_prev(void) {
                 dirty = 1;
             }
         }
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     if (edit_mode == 2) {
@@ -743,11 +700,9 @@ static void focus_prev(void) {
             edit_cursor--;
             dirty = 1;
         }
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
 
-    /* Navigate within W_LIST if focused */
     if (focus_item_idx >= 0) {
         const Widget *w = &current_layout->items[focus_item_idx];
         if ((w->type == W_LIST) && (w->list != NULL)) {
@@ -759,11 +714,9 @@ static void focus_prev(void) {
                     list_item_focus = i;
                     wlist_scroll_adjust(w);
                     dirty = 1;
-                    /* cppcheck-suppress misra-c2012-15.5 */
                     return;
                 }
             }
-            /* reached top of list, leave it and fall through to prev widget */
             leave_list_widget();
         }
     }
@@ -791,7 +744,6 @@ static void focus_prev(void) {
                     }
                 }
                 dirty = 1;
-                /* cppcheck-suppress misra-c2012-15.5 */
                 return;
             }
         }
@@ -811,17 +763,14 @@ static void focus_inc(void) {
                 dirty = 1;
             }
         }
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     if (current_layout == NULL) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     {
         const Widget *w = (focus_item_idx >= 0) ? &current_layout->items[focus_item_idx] : NULL;
         if (w == NULL) {
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         if (edit_mode == 2) {
@@ -830,14 +779,12 @@ static void focus_inc(void) {
                 w->buf[edit_cursor] = (c < '~') ? (char)(c + 1) : ' ';
                 dirty = 1;
             }
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         if ((edit_mode == 1) && (w->type == W_VALUE) && (w->value != NULL)) {
             change_value(w->value, +1, w->min, w->max, w->step,
                          w->options, w->options_count, w->on_change);
             dirty = 1;
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         if ((edit_mode == 1) && (w->type == W_LIST)) {
@@ -864,17 +811,14 @@ static void focus_dec(void) {
                 dirty = 1;
             }
         }
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     if (current_layout == NULL) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     {
         const Widget *w = (focus_item_idx >= 0) ? &current_layout->items[focus_item_idx] : NULL;
         if (w == NULL) {
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         if (edit_mode == 2) {
@@ -883,14 +827,12 @@ static void focus_dec(void) {
                 w->buf[edit_cursor] = (c > ' ') ? (char)(c - 1) : '~';
                 dirty = 1;
             }
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         if ((edit_mode == 1) && (w->type == W_VALUE) && (w->value != NULL)) {
             change_value(w->value, -1, w->min, w->max, w->step,
                          w->options, w->options_count, w->on_change);
             dirty = 1;
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         if ((edit_mode == 1) && (w->type == W_LIST)) {
@@ -914,18 +856,15 @@ static void focus_activate(void) {
             if ((item != NULL) && (edit_mode == 1)) {
                 edit_mode = 0;
                 dirty = 1;
-                /* cppcheck-suppress misra-c2012-15.5 */
                 return;
             }
             if (item == NULL) {
-                /* cppcheck-suppress misra-c2012-15.5 */
                 return;
             }
             if ((item->type == LI_VALUE) && (item->value != NULL)) {
                 value_backup = *item->value;
                 edit_mode    = 1;
                 dirty = 1;
-                /* cppcheck-suppress misra-c2012-15.5 */
                 return;
             }
             if ((item->type == LI_CHECK) && (item->value != NULL)) {
@@ -934,32 +873,26 @@ static void focus_activate(void) {
                     item->on_change(*item->value);
                 }
                 dirty = 1;
-                /* cppcheck-suppress misra-c2012-15.5 */
                 return;
             }
             if (((item->type == LI_BTN) || (item->type == LI_SUBMENU)) && (item->on_click != NULL)) {
                 item->on_click();
             }
         }
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     if (current_layout == NULL) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     {
         const Widget *w = (focus_item_idx >= 0) ? &current_layout->items[focus_item_idx] : NULL;
 
-        /* Confirm value / string edit */
         if ((w != NULL) && ((edit_mode == 1) || (edit_mode == 2))) {
             edit_mode = 0;
             dirty = 1;
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         if (w == NULL) {
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
 
@@ -967,31 +900,26 @@ static void focus_activate(void) {
             value_backup = *w->value;
             edit_mode = 1;
             dirty = 1;
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         if (w->type == W_EDIT) {
             edit_mode = 2;
             edit_cursor = (w->buf != NULL) ? (int)strlen(w->buf) : 0;
             if (w->buf != NULL) {
-                /* cppcheck-suppress misra-c2012-17.7 */
                 strncpy(edit_backup, w->buf, sizeof(edit_backup) - 1U);
                 edit_backup[sizeof(edit_backup) - 1U] = '\0';
             }
             dirty = 1;
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         if ((w->type == W_LIST) && (w->list != NULL)) {
             int n;
             const ListItem *items;
             if (list_item_focus < 0) {
-                /* cppcheck-suppress misra-c2012-15.5 */
                 return;
             }
             items = list_items(w->list, &n);
             if (list_item_focus >= n) {
-                /* cppcheck-suppress misra-c2012-15.5 */
                 return;
             }
             {
@@ -1000,7 +928,6 @@ static void focus_activate(void) {
                     value_backup = *item->value;
                     edit_mode    = 1;
                     dirty = 1;
-                    /* cppcheck-suppress misra-c2012-15.5 */
                     return;
                 }
                 if ((item->type == LI_CHECK) && (item->value != NULL)) {
@@ -1009,14 +936,12 @@ static void focus_activate(void) {
                         item->on_change(*item->value);
                     }
                     dirty = 1;
-                    /* cppcheck-suppress misra-c2012-15.5 */
                     return;
                 }
                 if (((item->type == LI_BTN) || (item->type == LI_SUBMENU)) && (item->on_click != NULL)) {
                     item->on_click();
                 }
             }
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         if (w->on_click != NULL) {
@@ -1039,27 +964,22 @@ static void focus_cancel(void) {
                 }
                 edit_mode = 0;
                 dirty = 1;
-                /* cppcheck-suppress misra-c2012-15.5 */
                 return;
             }
             if (edit_mode == 0) {
                 render_back();
             }
         }
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     if (current_layout == NULL) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     if (edit_mode == 0) {
         render_back();
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     if (focus_item_idx < 0) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     {
@@ -1081,7 +1001,6 @@ static void focus_cancel(void) {
         }
         if ((edit_mode == 2) && (w->buf != NULL)) {
             int maxcopy = (int)w->buf_len - 1;
-            /* cppcheck-suppress misra-c2012-17.7 */
             strncpy(w->buf, edit_backup, (size_t)maxcopy);
             w->buf[(size_t)maxcopy] = '\0';
         }
@@ -1094,7 +1013,6 @@ static void focus_cancel(void) {
 
 void render_next(void) {
     if ((edit_mode == 0) && (dispatch_key(RENDER_KEY_NEXT) != 0)) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     focus_next();
@@ -1102,7 +1020,6 @@ void render_next(void) {
 
 void render_prev(void) {
     if ((edit_mode == 0) && (dispatch_key(RENDER_KEY_PREV) != 0)) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     focus_prev();
@@ -1110,7 +1027,6 @@ void render_prev(void) {
 
 void render_activate(void) {
     if ((edit_mode == 0) && (dispatch_key(RENDER_KEY_ACTIVATE) != 0)) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     focus_activate();
@@ -1118,7 +1034,6 @@ void render_activate(void) {
 
 void render_cancel(void) {
     if ((edit_mode == 0) && (dispatch_key(RENDER_KEY_CANCEL) != 0)) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     focus_cancel();
@@ -1126,7 +1041,6 @@ void render_cancel(void) {
 
 void render_inc(void) {
     if ((edit_mode == 0) && (dispatch_key(RENDER_KEY_INC) != 0)) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     focus_inc();
@@ -1134,36 +1048,30 @@ void render_inc(void) {
 
 void render_dec(void) {
     if ((edit_mode == 0) && (dispatch_key(RENDER_KEY_DEC) != 0)) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     focus_dec();
 }
 
-/* cppcheck-suppress misra-c2012-8.7 */
 int render_in_value_edit(void) { return (edit_mode == 1) ? 1 : 0; }
 int render_in_edit_mode(void)  { return (edit_mode == 2) ? 1 : 0; }
 
 void render_edit_char(char c) {
     if ((edit_mode != 2) || (current_layout == NULL) || (focus_item_idx < 0)) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     {
         const Widget *w = &current_layout->items[focus_item_idx];
         if (w->buf == NULL) {
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         {
             int len = (int)strlen(w->buf);
             if (len >= ((int)w->buf_len - 1)) {
-                /* cppcheck-suppress misra-c2012-15.5 */
                 return;
             }
             {
                 int move_len = len - edit_cursor + 1;
-                /* cppcheck-suppress misra-c2012-17.7 */
                 memmove(&w->buf[edit_cursor + 1], &w->buf[edit_cursor],
                         (size_t)move_len);
             }
@@ -1176,19 +1084,16 @@ void render_edit_char(char c) {
 
 void render_edit_delete(void) {
     if ((edit_mode != 2) || (current_layout == NULL) || (focus_item_idx < 0)) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     {
         const Widget *w = &current_layout->items[focus_item_idx];
         if ((w->buf == NULL) || (edit_cursor == 0)) {
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         {
             int len = (int)strlen(w->buf);
             int move_len = len - edit_cursor + 1;
-            /* cppcheck-suppress misra-c2012-17.7 */
             memmove(&w->buf[edit_cursor - 1], &w->buf[edit_cursor],
                     (size_t)move_len);
             edit_cursor--;
@@ -1199,7 +1104,6 @@ void render_edit_delete(void) {
 
 WidgetType render_focused_type(void) {
     if ((current_layout == NULL) || (focus_item_idx < 0)) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return W_LABEL;
     }
     return current_layout->items[focus_item_idx].type;
@@ -1207,18 +1111,15 @@ WidgetType render_focused_type(void) {
 
 void render_edit_set(const char *str) {
     if ((current_layout == NULL) || (focus_item_idx < 0)) {
-        /* cppcheck-suppress misra-c2012-15.5 */
         return;
     }
     {
         const Widget *w = &current_layout->items[focus_item_idx];
         if ((w->type != W_EDIT) || (w->buf == NULL)) {
-            /* cppcheck-suppress misra-c2012-15.5 */
             return;
         }
         {
             int maxcopy = (int)w->buf_len - 1;
-            /* cppcheck-suppress misra-c2012-17.7 */
             strncpy(w->buf, str, (size_t)maxcopy);
             w->buf[(size_t)maxcopy] = '\0';
         }

@@ -1,7 +1,6 @@
 #pragma once
 #include <stdint.h>
 
-/* cppcheck-suppress misra-c2012-5.6 */
 typedef struct ListLayout ListLayout; // forward declaration (defined in widget_list.h)
 
 typedef struct {
@@ -39,25 +38,15 @@ typedef uint8_t WidgetAlign;
 #define ALIGN_V_MASK    0x0Cu
 
 // convenience combinations — suppress 2.5 (unused macro) for public API macros
-/* cppcheck-suppress misra-c2012-2.5 */
 #define ALIGN_DEFAULT      0u
-/* cppcheck-suppress misra-c2012-2.5 */
 #define ALIGN_TOP_LEFT     (ALIGN_V_TOP    | ALIGN_H_LEFT)
-/* cppcheck-suppress misra-c2012-2.5 */
 #define ALIGN_TOP_MID      (ALIGN_V_TOP    | ALIGN_H_MID)
-/* cppcheck-suppress misra-c2012-2.5 */
 #define ALIGN_TOP_RIGHT    (ALIGN_V_TOP    | ALIGN_H_RIGHT)
-/* cppcheck-suppress misra-c2012-2.5 */
 #define ALIGN_MID_LEFT     (ALIGN_V_MID    | ALIGN_H_LEFT)
-/* cppcheck-suppress misra-c2012-2.5 */
 #define ALIGN_CENTER       (ALIGN_V_MID    | ALIGN_H_MID)
-/* cppcheck-suppress misra-c2012-2.5 */
 #define ALIGN_MID_RIGHT    (ALIGN_V_MID    | ALIGN_H_RIGHT)
-/* cppcheck-suppress misra-c2012-2.5 */
 #define ALIGN_BOTTOM_LEFT  (ALIGN_V_BOTTOM | ALIGN_H_LEFT)
-/* cppcheck-suppress misra-c2012-2.5 */
 #define ALIGN_BOTTOM_MID   (ALIGN_V_BOTTOM | ALIGN_H_MID)
-/* cppcheck-suppress misra-c2012-2.5 */
 #define ALIGN_BOTTOM_RIGHT (ALIGN_V_BOTTOM | ALIGN_H_RIGHT)
 
 typedef struct {
@@ -115,7 +104,6 @@ typedef struct {
     .on_key = (handler) \
 }
 
-/* cppcheck-suppress misra-c2012-2.5 */
 #define LAYOUT_BG(handler, bg_color, ...) { \
     .items  = (const Widget[]){ __VA_ARGS__ }, \
     .count  = sizeof((const Widget[]){ __VA_ARGS__ }) / sizeof(Widget), \
@@ -123,7 +111,6 @@ typedef struct {
     .on_key = (handler) \
 }
 
-/* cppcheck-suppress misra-c2012-2.5 */
 #define LAYOUT_BG_BB(handler, bg_color, sep_color, ...) { \
     .items    = (const Widget[]){ __VA_ARGS__ }, \
     .count    = sizeof((const Widget[]){ __VA_ARGS__ }) / sizeof(Widget), \
@@ -132,7 +119,6 @@ typedef struct {
     .on_key   = (handler) \
 }
 
-/* cppcheck-suppress misra-c2012-2.5 */
 #define LAYOUT_BG_BT(handler, bg_color, sep_color, ...) { \
     .items    = (const Widget[]){ __VA_ARGS__ }, \
     .count    = sizeof((const Widget[]){ __VA_ARGS__ }) / sizeof(Widget), \

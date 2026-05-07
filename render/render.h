@@ -1,97 +1,62 @@
 #pragma once
 #include <stdint.h>
+#include "ctx.h"
+#include "view.h"
 #include "widget.h"
 #include "widget_list.h"
 #include "theme.h"
 
-/* cppcheck-suppress misra-c2012-5.6 */
-typedef struct Font Font;
-
-void render_set_theme(const Theme *t);
-
 #define STATIC_PANELS_MAX 4U
 
-typedef struct Render Render;
+/* ── engine initialisation ───────────────────────────────────────────────── */
+void render_set_gfx  (const Gfx   *g);
+void render_set_view (const View  *v); /* NULL → use &view_default */
+void render_set_theme(const Theme *t);
+void render_set_font (const Font  *f); /* update active font; marks dirty */
 
-/* cppcheck-suppress misra-c2012-5.6 */
-typedef struct Ctx Ctx;
-
-struct Ctx {
-    const Render *r;
-    const Theme  *t;
-    int16_t       ox;       /* x origin — absolute screen coords */
-    int16_t       oy;       /* y origin */
-    int16_t       cw;       /* clip width  */
-    int16_t       ch;       /* clip height */
-    uint16_t      panel_bg; /* current panel background (0 = theme screen_bg) */
-};
-
-struct Render {
-    /* frame-level hooks */
-    void (*begin_frame)      (const Ctx *ctx);
-    void (*flush)            (void);
-    /* called instead of the normal frame when W_EDIT is in string-input mode */
-    void (*draw_edit_overlay)(const Ctx *ctx, const Widget *w, int cursor);
-
-    uint16_t screen_w;
-    uint16_t screen_h;
-
-    /* widget draw callbacks — x/y are ctx-relative */
-    void (*draw_label)   (const Ctx *ctx, int16_t x, int16_t y, const Widget *w);
-    void (*draw_btn)     (const Ctx *ctx, int16_t x, int16_t y, const Widget *w, int focused);
-    void (*draw_value)   (const Ctx *ctx, int16_t x, int16_t y, const Widget *w, int focused, int editing);
-    void (*draw_progress)(const Ctx *ctx, int16_t x, int16_t y, const Widget *w);
-    void (*draw_edit)    (const Ctx *ctx, int16_t x, int16_t y, const Widget *w, int focused);
-
-    /* list callbacks */
-    void (*draw_list_item)     (const Ctx *ctx, int16_t x, int16_t y,
-                                uint16_t row_w, uint16_t row_h,
-                                const ListItem *item, int focused, int editing);
-    void (*draw_list_separator)(const Ctx *ctx, int16_t x, int16_t y,
-                                uint16_t row_w, uint16_t row_h);
-    /* fill ctx area with a solid color (used for panel backgrounds) */
-    void (*draw_fill)(const Ctx *ctx, uint16_t color);
-};
-
-void  render_set(const Render *r);
-/* screen-level entry points (mutually exclusive; share focus/edit state) */
-void  render_screen(const Layout *layout);
+/* ── screen-level entry points (mutually exclusive; share focus/edit state) */
+void  render_screen   (const Layout *layout);
 void  render_screen_at(const Layout *layout, int16_t x, int16_t y, int16_t w, int16_t h);
-void  render_list(const ListLayout *list);
-void  render_list_at(const ListLayout *list, int16_t x, int16_t y, int16_t w, int16_t h);
-/* static panels — drawn every frame without focus, saved/restored in nav history */
-void  render_add_static(const Layout *layout, int16_t x, int16_t y, int16_t w, int16_t h);
+void  render_list     (const ListLayout *list);
+void  render_list_at  (const ListLayout *list, int16_t x, int16_t y, int16_t w, int16_t h);
+
+/* ── static panels — drawn every frame without focus ─────────────────────── */
+void  render_add_static    (const Layout *layout, int16_t x, int16_t y, int16_t w, int16_t h);
 void  render_remove_statics(void);
-void  render_back(void);            /* pop history and restore previous screen */
-int   render_can_back(void);        // non-zero if there is history to pop
-void  render_refresh(void);       // draw if dirty, then clear dirty
-void  render_mark_dirty(void);    // mark display as needing redraw (call from dynamic data updates)
-int   render_is_dirty(void);
+
+/* ── navigation history ──────────────────────────────────────────────────── */
+void  render_back    (void);
+int   render_can_back(void);
+
+/* ── frame management ────────────────────────────────────────────────────── */
+void  render_refresh   (void);   /* draw if dirty, then clear dirty flag */
+void  render_mark_dirty(void);
+int   render_is_dirty  (void);
+
 const Layout     *render_current_layout(void);
-const ListLayout *render_current_list(void);
+const ListLayout *render_current_list  (void);
 
-// input events — dispatch on_key first (normal mode), then act on focus
-void  render_next(void);            // navigate forward / decrement value in edit
-void  render_prev(void);            // navigate back   / increment value in edit
-void  render_activate(void);        // confirm edit / enter edit / trigger on_click
-void  render_cancel(void);          // cancel edit (restore backup) / back via on_key
-void  render_inc(void);             // increment value (encoder +)
-void  render_dec(void);             // decrement value (encoder −)
+/* ── input events ────────────────────────────────────────────────────────── */
+void  render_next    (void);
+void  render_prev    (void);
+void  render_activate(void);
+void  render_cancel  (void);
+void  render_inc     (void);
+void  render_dec     (void);
 
-// edit mode queries
-int   render_in_value_edit(void);   // W_VALUE: encoder rotation changes value
-int   render_in_edit_mode(void);    // W_EDIT: string input active
+/* ── edit mode queries ───────────────────────────────────────────────────── */
+int   render_in_value_edit(void);
+int   render_in_edit_mode (void);
 
-// W_EDIT — direct character input (SDL / keyboard platforms)
-void  render_edit_char(char c);
+/* ── W_EDIT character input (SDL / keyboard) ─────────────────────────────── */
+void  render_edit_char  (char c);
 void  render_edit_delete(void);
 
-// W_EDIT — query focused widget type and set value (console platform)
+/* ── W_EDIT console helpers ──────────────────────────────────────────────── */
 WidgetType render_focused_type(void);
-void       render_edit_set(const char *str);
+void       render_edit_set    (const char *str);
 
-// ── backend contract (must be implemented by each renderer) ──────────────────
-extern void  render_init(void);       // init hardware / window, call render_set() + render_set_theme()
-extern void  render_wait_key(void);   // platform event loop — blocks until exit
-extern void  render_quit(void);       // release resources
-extern void  render_set_font(const Font *f); // switch active font and redraw
+/* ── backend contract (implemented per platform) ─────────────────────────── */
+extern void render_init    (void);
+extern void render_wait_key(void);
+extern void render_quit    (void);
